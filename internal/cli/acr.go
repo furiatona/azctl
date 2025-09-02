@@ -97,6 +97,22 @@ func newACRCmd() *cobra.Command {
 				cfg.Set("IMAGE_TAG", imageTag)
 			}
 
+			// Auto-detect IMAGE_NAME and IMAGE_TAG in CI if not set
+			if isCIEnvironment() {
+				if cfg.Get("IMAGE_NAME") == "" {
+					if detectedImageName := detectImageNameFromCI(); detectedImageName != "" {
+						cfg.Set("IMAGE_NAME", detectedImageName)
+						logx.Infof("[DEBUG] Auto-detected IMAGE_NAME from CI: %s", detectedImageName)
+					}
+				}
+				if cfg.Get("IMAGE_TAG") == "" {
+					if detectedImageTag := detectImageTagFromCI(); detectedImageTag != "" {
+						cfg.Set("IMAGE_TAG", detectedImageTag)
+						logx.Infof("[DEBUG] Auto-detected IMAGE_TAG from CI: %s", detectedImageTag)
+					}
+				}
+			}
+
 			// Validate required variables
 			requiredVars := []string{"IMAGE_NAME", "IMAGE_TAG"}
 			for _, varName := range requiredVars {

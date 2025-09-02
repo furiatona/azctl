@@ -57,3 +57,62 @@ func detectEnvironmentFromCI() string {
 
 	return ""
 }
+
+n// detectImageNameFromCI detects the image name from CI context
+func detectImageNameFromCI() string {
+	// Try to detect from GitHub Actions
+	if os.Getenv("GITHUB_ACTIONS") == "true" {
+		if repoName := os.Getenv("GITHUB_REPOSITORY"); repoName != "" {
+			// Extract repository name from "owner/repo" format
+			parts := strings.Split(repoName, "/")
+			if len(parts) == 2 {
+				return parts[1]
+			}
+		}
+	}
+
+	// Try to detect from Azure Pipeline
+	if os.Getenv("AZURE_PIPELINE") == "true" {
+		if buildRepoName := os.Getenv("BUILD_REPOSITORY_NAME"); buildRepoName != "" {
+			return buildRepoName
+		}
+	}
+
+	// Try to detect from GitLab CI
+	if os.Getenv("GITLAB_CI") == "true" {
+		if projectName := os.Getenv("CI_PROJECT_NAME"); projectName != "" {
+			return projectName
+		}
+	}
+
+	return ""
+}
+
+// detectImageTagFromCI detects the image tag from CI context
+func detectImageTagFromCI() string {
+	// Try to detect from GitHub Actions
+	if os.Getenv("GITHUB_ACTIONS") == "true" {
+		if sha := os.Getenv("GITHUB_SHA"); sha != "" {
+			return sha
+		}
+	}
+
+	// Try to detect from Azure Pipeline
+	if os.Getenv("AZURE_PIPELINE") == "true" {
+		if buildId := os.Getenv("BUILD_BUILDID"); buildId != "" {
+			return buildId
+		}
+		if sourceVersion := os.Getenv("BUILD_SOURCEVERSION"); sourceVersion != "" {
+			return sourceVersion
+		}
+	}
+
+	// Try to detect from GitLab CI
+	if os.Getenv("GITLAB_CI") == "true" {
+		if commitSha := os.Getenv("CI_COMMIT_SHA"); commitSha != "" {
+			return commitSha
+		}
+	}
+
+	return ""
+}

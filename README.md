@@ -20,22 +20,22 @@ Download the latest binary from [dl.furiatona.dev](https://dl.furiatona.dev/azct
 
 ```bash
 # Linux AMD64
-curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl-linux-amd64 -o azctl
+curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl_linux_amd64 -o azctl
 chmod +x azctl
 sudo mv azctl /usr/local/bin/
 
 # macOS AMD64
-curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl-darwin-amd64 -o azctl
+curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl_darwin_amd64 -o azctl
 chmod +x azctl
 sudo mv azctl /usr/local/bin/
 
 # macOS ARM64
-curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl-darwin-arm64 -o azctl
+curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl_darwin_arm64 -o azctl
 chmod +x azctl
 sudo mv azctl /usr/local/bin/
 
 # Windows AMD64
-# Download azctl-windows-amd64.exe from https://dl.furiatona.dev/azctl/v0.2.0/
+# Download azctl_windows_amd64.exe from https://dl.furiatona.dev/azctl/v0.2.0/
 ```
 
 ### From Source
@@ -154,7 +154,7 @@ The tool automatically:
 azctl acr
 
 # Using CLI flags
-azctl acr --registry myregistry --image myapp --tag v1.0.0 --resource-group my-rg
+azctl acr --registry myregistry --image myapp --tag v1.0.0
 
 # With environment-specific config
 azctl acr --env dev
@@ -215,19 +215,18 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
       
+      - name: Download azctl
+        run: |
+          curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl_linux_amd64 -o azctl
+          chmod +x azctl
+      
       - name: Deploy to ACI
         env:
           RESOURCE_GROUP: rg-swarm-${{ github.ref_name }}
           APP_CONFIG: chiswarm-app-conf-${{ github.ref_name == 'main' && 'prod' || github.ref_name }}
           ACI_SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          ACI_FIREBASE_KEY: ${{ secrets.FIREBASE_KEY }}
         run: |
-          # Download azctl
-          curl -L https://dl.furiatona.dev/azctl/latest/azctl-linux-amd64 -o azctl
-          chmod +x azctl
-          
-          # Deploy (environment auto-detected from branch name)
-          ./azctl aci
+          ./azctl aci  # Environment auto-detected!
 ```
 
 ### Azure Pipeline Example
@@ -253,7 +252,7 @@ steps:
     scriptLocation: 'inlineScript'
     inlineScript: |
       # Download azctl
-      curl -L https://dl.furiatona.dev/azctl/latest/azctl-linux-amd64 -o azctl
+      curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl_linux_amd64 -o azctl
       chmod +x azctl
       
       # Deploy (environment auto-detected)

@@ -73,6 +73,11 @@ func TestCIEnvironmentDetection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Clean up any existing CI environment variables
+			for _, envVar := range []string{"CI", "GITHUB_ACTIONS", "AZURE_PIPELINE", "GITLAB_CI", "JENKINS_URL", "TRAVIS", "CIRCLECI"} {
+				os.Unsetenv(envVar)
+			}
+
 			// Set environment variables
 			for k, v := range tt.envVars {
 				t.Setenv(k, v)

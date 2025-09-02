@@ -27,7 +27,7 @@ jobs:
           go-version: '1.22.x'
       - name: Build binaries
         run: make release
-      - name: Upload to cPanel
+      - name: Upload to temp directory
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.CPANEL_HOST }}
@@ -35,7 +35,20 @@ jobs:
           password: ${{ secrets.CPANEL_PASS }}
           port: ${{ secrets.CPANEL_PORT }}
           source: "dist/azctl_*"
-          target: "/home/${{ secrets.CPANEL_USER }}/subdomains/dl.furiatona.dev/azctl/${GITHUB_REF#refs/tags/}"
+          target: "/home/${{ secrets.CPANEL_USER }}/subdomains/dl.furiatona.dev/temp"
+      - name: Move files to correct location
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          ssh -o StrictHostKeyChecking=no -p ${{ secrets.CPANEL_PORT }} ${{ secrets.CPANEL_USER }}@${{ secrets.CPANEL_HOST }} << 'EOF'
+            # Create version directory
+            mkdir -p /home/${{ secrets.CPANEL_USER }}/subdomains/dl.furiatona.dev/azctl/$VERSION
+            
+            # Move files from temp to version directory
+            mv /home/${{ secrets.CPANEL_USER }}/subdomains/dl.furiatona.dev/temp/azctl_* /home/${{ secrets.CPANEL_USER }}/subdomains/dl.furiatona.dev/azctl/$VERSION/
+            
+            # Clean up temp directory
+            rmdir /home/${{ secrets.CPANEL_USER }}/subdomains/dl.furiatona.dev/temp
+          EOF
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
         env:

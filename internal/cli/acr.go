@@ -57,7 +57,6 @@ func collectBuildArgs(cfg *config.Config) []string {
 
 func newACRCmd() *cobra.Command {
 	var (
-		envName       string
 		registry      string
 		resourceGroup string
 		imageName     string
@@ -70,6 +69,9 @@ func newACRCmd() *cobra.Command {
 		Use:   "acr",
 		Short: "Build and push Docker image to Azure Container Registry",
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			// Get environment from root command
+			envName, _ := cmd.Flags().GetString("env")
+
 			cfg := config.Current()
 
 			// Auto-detect environment in CI if not provided
@@ -81,19 +83,9 @@ func newACRCmd() *cobra.Command {
 				}
 			}
 
-			// If environment is specified, reload config with environment-specific Azure App Configuration
-			if envName != "" {
-				logx.Infof("[DEBUG] Loading environment-specific config for: %s", envName)
-				if err := reloadConfigWithEnvironment(cmd.Context(), envName); err != nil {
-					return fmt.Errorf("failed to load environment config: %w", err)
-				}
-				cfg = config.Current() // Get the updated config
-				logx.Infof("[DEBUG] Config reloaded for environment: %s", envName)
-			}
-
 			// Apply flag overrides to config
 			if registry != "" {
-				cfg.Set("REGISTRY", registry)
+				cfg.Set("ACR_REGISTRY", registry)
 			}
 			if resourceGroup != "" {
 				cfg.Set("ACR_RESOURCE_GROUP", resourceGroup)
@@ -106,20 +98,26 @@ func newACRCmd() *cobra.Command {
 			}
 
 			// Validate required variables
-			requiredVars := []string{"IMAGE_NAME", "IMAGE_TAG", "REGISTRY"}
+			requiredVars := []string{"IMAGE_NAME", "IMAGE_TAG"}
 			for _, varName := range requiredVars {
 				if cfg.Get(varName) == "" {
 					return fmt.Errorf("missing required variable: %s", varName)
 				}
 			}
 
+			// Check for registry (ACR_REGISTRY)
+			registry = cfg.Get("ACR_REGISTRY")
+			if registry == "" {
+				return fmt.Errorf("missing required variable: ACR_REGISTRY")
+			}
+
 			// Get ACR resource group
 			acrResourceGroup := cfg.Get("ACR_RESOURCE_GROUP")
 			if acrResourceGroup == "" {
 				// Try to find ACR in any resource group
-				acrResourceGroup = findACRResourceGroup(cmd.Context(), cfg.Get("REGISTRY"))
+				acrResourceGroup = findACRResourceGroup(cmd.Context(), registry)
 				if acrResourceGroup == "" {
-					return fmt.Errorf("ACR resource group not found for registry: %s", cfg.Get("REGISTRY"))
+					return fmt.Errorf("ACR resource group not found for registry: %s", registry)
 				}
 				logx.Infof("Found ACR in resource group: %s", acrResourceGroup)
 			}
@@ -127,7 +125,6 @@ func newACRCmd() *cobra.Command {
 			// Build and push image
 			imageName = cfg.Get("IMAGE_NAME")
 			imageTag = cfg.Get("IMAGE_TAG")
-			registry = cfg.Get("REGISTRY")
 			fullImageName := fmt.Sprintf("%s.azurecr.io/%s:%s", registry, imageName, imageTag)
 
 			logx.Printf("Building and pushing image: %s", fullImageName)
@@ -167,8 +164,7 @@ func newACRCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&envName, "env", "", "Environment name; optional to select app config scope (auto-detected in CI)")
-	cmd.Flags().StringVar(&registry, "registry", "", "ACR registry name (env: REGISTRY)")
+	cmd.Flags().StringVar(&registry, "registry", "", "ACR registry name (env: ACR_REGISTRY)")
 	cmd.Flags().StringVar(&resourceGroup, "resource-group", "", "Resource group for ACR (env: ACR_RESOURCE_GROUP)")
 	cmd.Flags().StringVar(&imageName, "image", "", "Image name (env: IMAGE_NAME)")
 	cmd.Flags().StringVar(&imageTag, "tag", "", "Image tag (env: IMAGE_TAG)")

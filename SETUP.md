@@ -1,526 +1,351 @@
-# azctl Setup Guide
+# Setup Guide
 
-This guide provides detailed setup instructions for azctl, a Go CLI tool for Azure container deployment workflows.
+This guide provides detailed instructions for setting up and configuring `azctl` for your Azure container deployment workflows.
 
 ## Prerequisites
 
 - Azure CLI installed and authenticated
-- Go 1.22+ (for building from source)
-- Docker (for building container images)
+- Go 1.21+ (for development)
+- Docker (for building images)
+- Azure Container Registry (ACR)
+- Azure App Configuration (optional, for centralized config)
 
-## Installation
+## Initial Setup
 
-### Option 1: Download Pre-built Binary (Recommended)
+### 1. Environment Configuration
 
-Download the latest binary from [dl.furiatona.dev](https://dl.furiatona.dev/azctl/):
-
-```bash
-# Linux AMD64
-curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl_linux_amd64 -o azctl
-chmod +x azctl
-sudo mv azctl /usr/local/bin/
-
-# macOS AMD64
-curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl_darwin_amd64 -o azctl
-chmod +x azctl
-sudo mv azctl /usr/local/bin/
-
-# macOS ARM64
-curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl_darwin_arm64 -o azctl
-chmod +x azctl
-sudo mv azctl /usr/local/bin/
-
-# Windows AMD64
-# Download azctl_windows_amd64.exe from https://dl.furiatona.dev/azctl/v0.2.0/
-```
-
-### Option 2: Build from Source
+Create environment-specific configuration files:
 
 ```bash
-git clone https://github.com/furiatona/azctl
-cd azctl
-make build
-./bin/azctl --help
+# Copy example files
+cp env.dev.example .env.dev
+cp env.staging.example .env.staging  
+cp env.prod.example .env.prod
+
+# Edit with your values
+nano .env.dev
 ```
 
-## Configuration
+### 2. Required Environment Variables
 
-### Precedence Order (highest to lowest)
-
-1. **CLI Flags** - Explicit command-line arguments
-2. **Environment Variables** - Shell environment and CI variables  
-3. **.env File** - Local development only (skipped when `CI=true`)
-4. **Azure App Configuration** - Centralized defaults (optional)
-
-### Environment Variable Naming
-
-#### Local Development (`.env` file)
-Use environment-specific prefixed variables for clarity:
-
+#### Core Variables (Required)
 ```bash
-# Development environment
-DEV_RESOURCE_GROUP=rg-myapp-dev
-DEV_APP_CONFIG=myapp-app-conf-dev
-DEV_WEBAPP_NAME=myapp-website-dev
+# Azure Container Registry
+ACR_REGISTRY=your-registry.azurecr.io
+ACR_RESOURCE_GROUP=your-acr-rg
 
-# Staging environment  
-STAGING_RESOURCE_GROUP=rg-myapp-staging
-STAGING_APP_CONFIG=myapp-app-conf
-STAGING_WEBAPP_NAME=myapp-website-staging
+# Image Configuration
+IMAGE_NAME=your-app-name
+IMAGE_TAG=latest
 
-# Production environment
-PROD_RESOURCE_GROUP=rg-myapp-prod
-PROD_APP_CONFIG=myapp-app-conf-prod
-PROD_WEBAPP_NAME=myapp-website-prod
-```
-
-#### CI Environments (GitHub Actions, Azure Pipelines)
-Use non-prefixed variables for cleaner configuration:
-
-```yaml
-# GitHub Actions workflow
-env:
-  RESOURCE_GROUP: rg-myapp-staging
-  APP_CONFIG: myapp-app-conf
-  WEBAPP_NAME: myapp-website-staging
-  ACI_SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-  ACI_FIREBASE_KEY: ${{ secrets.FIREBASE_KEY }}
-```
-
-The tool automatically:
-1. **Detects CI environment** (GitHub Actions, Azure Pipeline, GitLab CI, etc.)
-2. **Auto-detects environment** (dev/staging/prod) from branch name
-3. **Maps prefixed variables** to non-prefixed versions
-4. **Uses appropriate configuration** for the detected environment
-
-### Required Variables
-
-#### ACR Commands
-- `REGISTRY` - ACR registry name
-- `ACR_RESOURCE_GROUP` - Resource group containing ACR
-- `IMAGE_NAME` - Container image name  
-- `IMAGE_TAG` - Container image tag
-
-#### WebApp Deployment
-- `AZURE_RESOURCE_GROUP` - Target resource group
-- `REGISTRY` - ACR registry name
-- `IMAGE_NAME` - Container image name
-- `IMAGE_TAG` - Container image tag
-
-#### ACI Deployment
-- `AZURE_RESOURCE_GROUP` - Target resource group
-- `CONTAINER_GROUP_NAME` - ACI container group name
-- `IMAGE_REGISTRY` - ACR registry name
-- `IMAGE_NAME` - Container image name
-- `IMAGE_TAG` - Container image tag
-- `ACR_USERNAME` - Registry username
-- `ACR_PASSWORD` - Registry password
-
-## Configuration Setup
-
-### 1. Create Environment File
-
-```bash
-cp env.sample .env
-```
-
-### 2. Configure Azure Resources
-
-Edit `.env` with your Azure configuration:
-
-```bash
-# Azure Configuration
-REGISTRY=myregistry
-AZURE_RESOURCE_GROUP=my-resource-group
-ACR_RESOURCE_GROUP=my-acr-resource-group
+# Azure Resources
+RESOURCE_GROUP=your-deployment-rg
 LOCATION=eastus
 
-# Container Configuration
-IMAGE_NAME=my-app
-IMAGE_TAG=latest
-CONTAINER_GROUP_NAME=my-app-container
-DNS_NAME_LABEL=my-app-dev
-
-# ACI Configuration
-OS_TYPE=Linux
-ACI_PORT=8080
-ACI_CPU=1
-ACI_MEMORY=2
-
-# Registry Credentials
-ACR_USERNAME=myregistry
-ACR_PASSWORD=your-acr-password
-
-# Application Environment Variables
-FIREBASE_KEY=your-FIREBASE-key
-FIREBASE_URL=https://your-project.FIREBASE.co/
-SAGEMAKER_OPENAI_MODEL=text-embedding-3-small
-SAGEMAKER_OPENAI_API_KEY=your-openai-key
-OPENAI_SAGEMAKER_EMBEDDINGS_ENDPOINT=https://example.com
-
-# Logging Configuration (optional)
-LOG_SHARE_NAME=logshare-dev
-LOG_STORAGE_ACCOUNT=mystorageaccount
-LOG_STORAGE_KEY=your-storage-key
-FLUENTBIT_CONFIG_SHARE=fluentbit-config-dev
-
-# WebApp Configuration (optional)
-WEBAPP_NAME=my-app-webapp
-DEV_WEBAPP_NAME=my-app-dev
-STAGING_WEBAPP_NAME=my-app-staging
-PROD_WEBAPP_NAME=my-app-prod
-APP_SERVICE_PLAN=my-app-service-plan
-DEV_APP_SERVICE_PLAN=my-app-dev-plan
-STAGING_APP_SERVICE_PLAN=my-app-staging-plan
-PROD_APP_SERVICE_PLAN=my-app-prod-plan
-
 # Azure App Configuration (optional)
-APP_CONFIG_NAME=my-app-config
-APP_CONFIG_LABEL=dev
-APP_CONFIG_SKIP=false
-APP_CONFIG_DEBUG=false
+APP_CONFIG=your-app-config-name
+APP_CONFIG_RESOURCE_GROUP=your-app-config-rg
 ```
 
-### 3. Azure Resource Setup
+#### ACI-Specific Variables
+```bash
+# Container Instance Configuration
+CONTAINER_GROUP_NAME=your-aci-group
+ACI_CPU=1
+ACI_MEMORY=2
+ACI_PORT=8080
+OS_TYPE=Linux
 
-#### Azure Container Registry (ACR)
+# Application Variables (customize per your app)
+FIREBASE_URL=https://your-project.firebase.co
+FIREBASE_KEY=your-firebase-key
+AZURE_OPENAI_MODEL=gpt-4
+AZURE_OPENAI_API_KEY=your-openai-key
+OPENAI_AZURE_EMBEDDINGS_ENDPOINT=https://your-endpoint.openai.azure.com
+
+# Logging Configuration
+LOG_STORAGE_NAME=your-log-storage
+LOG_STORAGE_ACCOUNT=your-storage-account
+LOG_STORAGE_KEY=your-storage-key
+FLUENTBIT_CONFIG=your-fluentbit-config
+```
+
+#### WebApp-Specific Variables
+```bash
+# Web App Configuration
+WEBAPP_NAME=your-webapp-name
+APP_SERVICE_PLAN=your-service-plan
+DNS_NAME_LABEL=your-dns-label
+```
+
+### 3. Azure App Configuration Setup
+
+For centralized configuration management:
+
+#### Create App Configuration Instance
+```bash
+# Create resource group
+az group create --name your-app-config-rg --location eastus
+
+# Create App Configuration
+az appconfig create --name your-app-config-name \
+  --resource-group your-app-config-rg \
+  --location eastus \
+  --sku Standard
+```
+
+#### Configure Keys
+
+**Global Configuration Key:**
+```json
+{
+  "RESOURCE_GROUP": "your-deployment-rg",
+  "ACR_REGISTRY": "your-registry.azurecr.io",
+  "LOCATION": "eastus",
+  "ACR_RESOURCE_GROUP": "your-acr-rg"
+}
+```
+
+**Service-Specific Key (use your IMAGE_NAME):**
+```json
+{
+  "FIREBASE_URL": "https://your-project.firebase.co",
+  "FIREBASE_KEY": "your-firebase-key",
+  "AZURE_OPENAI_MODEL": "gpt-4",
+  "AZURE_OPENAI_API_KEY": "your-openai-key",
+  "OPENAI_AZURE_EMBEDDINGS_ENDPOINT": "https://your-endpoint.openai.azure.com"
+}
+```
+
+#### Optional: Environment Labels
+
+If you want to use a single App Configuration instance for multiple environments:
+
+```bash
+# Add labels to keys for environment separation
+az appconfig kv set --name your-app-config-name \
+  --key global-configurations \
+  --label staging \
+  --value '{"RESOURCE_GROUP": "rg-staging", "ACR_REGISTRY": "staging.azurecr.io"}'
+
+az appconfig kv set --name your-app-config-name \
+  --key global-configurations \
+  --label prod \
+  --value '{"RESOURCE_GROUP": "rg-prod", "ACR_REGISTRY": "prod.azurecr.io"}'
+```
+
+### 4. Azure Container Registry Setup
 
 ```bash
 # Create ACR
-az acr create --resource-group my-acr-resource-group --name myregistry --sku Basic
+az acr create --name your-registry \
+  --resource-group your-acr-rg \
+  --sku Basic \
+  --admin-enabled true
 
-# Get ACR credentials
-az acr credential show --name myregistry
+# Get credentials
+az acr credential show --name your-registry
 ```
 
-#### Azure Storage Account (for logging)
+### 5. Template Customization
 
-```bash
-# Create storage account
-az storage account create --name mystorageaccount --resource-group my-resource-group --location eastus --sku Standard_LRS
+#### ACI Template (`deploy/manifests/aci.json`)
 
-# Create file shares
-az storage share create --name logshare-dev --account-name mystorageaccount
-az storage share create --name fluentbit-config-dev --account-name mystorageaccount
-
-# Get storage key
-az storage account keys list --resource-group my-resource-group --account-name mystorageaccount
-```
-
-## Usage Examples
-
-### Build and Push to ACR
-
-```bash
-# Basic usage
-azctl acr
-
-# With custom parameters
-azctl acr --registry myregistry --image myapp --tag v1.0.0 --resource-group my-rg
-
-# Environment-specific deployment
-azctl acr --env dev
-azctl acr --env staging
-azctl acr --env production
-```
-
-### Deploy to Azure Container Instances (ACI)
-
-```bash
-# Basic deployment
-azctl aci --resource-group my-rg
-
-# With custom template
-azctl aci --template ./my-aci-template.json --env production
-
-# Dry run (generate JSON without deploying)
-azctl aci --dry-run --env staging --resource-group staging-rg
-```
-
-### Deploy to Azure Web Apps
-
-```bash
-# Deploy to existing WebApp
-azctl webapp --env staging --resource-group my-rg
-
-# Deploy with custom WebApp name
-azctl webapp --env production --name my-custom-webapp
-```
-
-## Template System
-
-ACI deployments use Go templates with environment variable substitution. The default template is located at `deploy/manifests/aci.json`.
-
-### Custom Template Example
+Customize the template for your application:
 
 ```json
 {
   "name": "{{ env \"CONTAINER_GROUP_NAME\" }}",
+  "type": "Microsoft.ContainerInstance/containerGroups",
+  "apiVersion": "2021-10-01",
   "location": "{{ env \"LOCATION\" }}",
   "properties": {
-    "containers": [{
-      "name": "app",
-      "properties": {
-        "image": "{{ env \"IMAGE_REGISTRY\" }}.azurecr.io/{{ env \"IMAGE_NAME\" }}:{{ env \"IMAGE_TAG\" }}",
-        "environmentVariables": [
-          { "name": "API_KEY", "value": "{{ env \"API_KEY\" }}" }
-        ]
+    "containers": [
+      {
+        "name": "{{ env \"IMAGE_NAME\" }}",
+        "properties": {
+          "image": "{{ env \"IMAGE_REGISTRY\" }}/{{ env \"IMAGE_NAME\" }}:{{ env \"IMAGE_TAG\" }}",
+          "resources": {
+            "requests": {
+              "cpu": "{{ env \"CPU\" }}",
+              "memoryInGB": "{{ env \"MEMORY\" }}"
+            }
+          },
+          "ports": [
+            {
+              "port": "{{ env \"PORT\" }}"
+            }
+          ],
+                     "environmentVariables": [
+             {
+               "name": "FIREBASE_URL",
+               "value": "{{ env \"FIREBASE_URL\" }}"
+             },
+             {
+               "name": "FIREBASE_KEY", 
+               "value": "{{ env \"FIREBASE_KEY\" }}"
+             }
+           ]
+        }
       }
-    }]
+    ],
+    "osType": "{{ env \"OS_TYPE\" }}",
+    "restartPolicy": "Always"
   }
 }
 ```
 
-## Environment-Based Configuration
+#### Fluent-bit Configuration (`deploy/configs/fluent-bit.conf`)
 
-All commands support environment-specific configuration via the `--env` flag:
+Customize logging configuration:
+
+```ini
+[INPUT]
+    Name tail
+    Path /var/log/containers/{{ env "IMAGE_NAME" }}*.log
+    Parser docker
+    Tag kube.*
+    Mem_Buf_Limit 5MB
+    Skip_Long_Lines On
+
+[OUTPUT]
+    Name azure
+    Match *
+    Customer_ID your-workspace-id
+    Shared_Key your-workspace-key
+    Log_Type your-log-type
+```
+
+## Usage Examples
+
+### Development Workflow
 
 ```bash
-# Load dev environment config
+# 1. Build and push image
 azctl acr --env dev
-azctl aci --env dev  
-azctl webapp --env dev
 
-# Load staging environment config
-azctl acr --env staging
-azctl aci --env staging
+# 2. Deploy to ACI for testing
+azctl aci --env dev --dry-run  # Test configuration
+azctl aci --env dev            # Deploy
+
+# 3. Deploy to WebApp for staging
 azctl webapp --env staging
-
-# Load production environment config
-azctl acr --env production
-azctl aci --env production
-azctl webapp --env production
 ```
 
-When `--env` is specified, azctl will:
+### CI/CD Integration
 
-1. **Load Azure App Configuration**: Fetch from `app-config-{env}` with label `{env}`
-2. **Load global-configurations**: JSON object with global settings
-3. **Load image-specific keys**: Keys containing the `IMAGE_NAME` value
-4. **Apply precedence**: CLI flags > Environment variables > .env > Azure App Configuration
-
-## CI/CD Integration
-
-Set environment variables in your CI system. The `.env` file is automatically skipped when `CI=true`.
-
-### GitHub Actions Example
-
-```yaml
-name: Deploy
-on:
-  push:
-    branches: [ main ]
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Download azctl
-        run: |
-          curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl-linux-amd64 -o azctl
-          chmod +x azctl
-      
-      - name: Deploy to ACR
-        env:
-          REGISTRY: ${{ secrets.REGISTRY }}
-          IMAGE_NAME: my-app
-          IMAGE_TAG: ${{ github.sha }}
-          ACR_RESOURCE_GROUP: ${{ secrets.ACR_RESOURCE_GROUP }}
-        run: ./azctl acr
-      
-      - name: Deploy to ACI
-        env:
-          AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
-          CONTAINER_GROUP_NAME: my-app-container
-          IMAGE_REGISTRY: ${{ secrets.REGISTRY }}
-          IMAGE_NAME: my-app
-          IMAGE_TAG: ${{ github.sha }}
-          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
-          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
-        run: ./azctl aci
+```bash
+# In CI pipeline - environment auto-detected
+azctl acr                    # Build and push
+azctl aci --resource-group $RESOURCE_GROUP  # Deploy
 ```
 
-## CI/CD Integration
+### Environment-Specific Deployments
 
-Set environment variables in your CI system. The `.env` file is automatically skipped when `CI=true`.
+```bash
+# Development
+azctl aci --env dev --resource-group rg-dev
 
-### GitHub Actions Example
+# Staging  
+azctl aci --env staging --resource-group rg-staging
 
-```yaml
-name: Deploy to Azure
-
-on:
-  push:
-    branches: [staging, main]
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-      
-      - name: Download azctl
-        run: |
-          curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl_linux_amd64 -o azctl
-          chmod +x azctl
-      
-      - name: Deploy to ACI
-        env:
-          RESOURCE_GROUP: rg-myapp-${{ github.ref_name }}
-          APP_CONFIG: myapp-app-conf-${{ github.ref_name == 'main' && 'prod' || github.ref_name }}
-          ACI_SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        run: |
-          ./azctl aci  # Environment auto-detected!
-```
-
-### Azure Pipeline Example
-
-```yaml
-trigger:
-  branches:
-    include:
-    - staging
-    - main
-
-pool:
-  vmImage: 'ubuntu-latest'
-
-variables:
-  RESOURCE_GROUP: 'rg-myapp-$(Build.SourceBranchName)'
-  APP_CONFIG: 'myapp-app-conf-$(Build.SourceBranchName)'
-
-steps:
-- task: AzureCLI@2
-  inputs:
-    azureSubscription: 'MyAzureSubscription'
-    scriptLocation: 'inlineScript'
-    inlineScript: |
-      # Download azctl
-      curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl_linux_amd64 -o azctl
-      chmod +x azctl
-      
-      # Deploy (environment auto-detected)
-      ./azctl aci
-```
-
-### Basic CI/CD Example
-
-```yaml
-name: Deploy
-on:
-  push:
-    branches: [ main ]
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Download azctl
-        run: |
-          curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl_linux_amd64 -o azctl
-          chmod +x azctl
-      
-      - name: Deploy to ACR
-        env:
-          REGISTRY: ${{ secrets.REGISTRY }}
-          IMAGE_NAME: my-app
-          IMAGE_TAG: ${{ github.sha }}
-          ACR_RESOURCE_GROUP: ${{ secrets.ACR_RESOURCE_GROUP }}
-        run: ./azctl acr
-      
-      - name: Deploy to ACI
-        env:
-          AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
-          CONTAINER_GROUP_NAME: my-app-container
-          IMAGE_REGISTRY: ${{ secrets.REGISTRY }}
-          IMAGE_NAME: my-app
-          IMAGE_TAG: ${{ github.sha }}
-          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
-          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
-        run: ./azctl aci
+# Production
+azctl aci --env prod --resource-group rg-prod
 ```
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Missing Environment Variables**
-   ```bash
-   Error: missing required environment variables: REGISTRY, IMAGE_NAME
-   ```
-   Solution: Set the required environment variables in your `.env` file or as environment variables.
-
-2. **ACI Deployment Validation Failed**
-   ```bash
-   Error: ACI deployment validation failed: missing required environment variables: CONTAINER_GROUP_NAME, ACR_PASSWORD
-   ```
-   Solution: Ensure all required ACI variables are set.
-
-3. **Azure Authentication Issues**
-   ```bash
-   Error: az: command not found
-   ```
-   Solution: Install and authenticate Azure CLI.
-
-### Debug Mode
-
-Use `--verbose` flag for detailed output:
-
+#### Missing Environment Variables
 ```bash
-azctl aci --verbose --dry-run
+# Check required variables
+azctl aci --env staging --dry-run --verbose
 ```
 
-### Dry Run
-
-Use `--dry-run` to inspect the generated configuration without deploying:
-
+#### Azure App Configuration Access
 ```bash
-azctl aci --dry-run --env staging
-# Outputs to: .azctl/aci-dry-run.json (git-ignored)
+# Verify access
+az appconfig kv list --name your-app-config-name
 ```
 
-## Development
-
-### Running Tests
-
+#### Template Rendering Issues
 ```bash
-make test
+# Debug template variables
+azctl aci --env staging --dry-run --verbose
 ```
 
-### Building
+### Debug Scripts
+
+Use the provided debug script to troubleshoot Azure App Configuration:
 
 ```bash
-make build
+# Debug App Configuration fetching
+./debug_appconfig.sh
 ```
 
-### Linting
+## Security Best Practices
+
+1. **Use Azure Key Vault** for sensitive values
+2. **Enable RBAC** on Azure resources
+3. **Use managed identities** when possible
+4. **Rotate credentials** regularly
+5. **Audit access** to App Configuration
+
+## Advanced Configuration
+
+### Custom Templates
+
+Create custom deployment templates:
 
 ```bash
-make lint
+# Use custom template
+azctl aci --template ./custom-aci.json --env staging
 ```
 
-### Cross-platform Release Build
+### Multi-Environment Setup
+
+For complex multi-environment setups:
 
 ```bash
-make release
+# Environment-specific App Config instances
+APP_CONFIG_DEV=your-dev-config
+APP_CONFIG_STAGING=your-staging-config  
+APP_CONFIG_PROD=your-prod-config
 ```
 
-## Contributing
+### Integration with CI/CD
 
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new functionality  
-4. Run `make test lint` 
-5. Submit a pull request
+Example GitHub Actions workflow:
 
-## License
+```yaml
+name: Deploy to Azure
+on:
+  push:
+    branches: [main, staging]
 
-MIT License - see [LICENSE](../LICENSE) file for details.
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+      
+      - name: Build and Deploy
+        run: |
+          make build
+          ./bin/azctl acr
+          ./bin/azctl aci --resource-group ${{ secrets.RESOURCE_GROUP }}
+        env:
+          ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
+          RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
+```
+
+## Support
+
+For issues and questions:
+- Check the [Environment Configuration Guide](ENVIRONMENT_CONFIG.md)
+- Review [troubleshooting section](#troubleshooting)
+- Open an issue on GitHub

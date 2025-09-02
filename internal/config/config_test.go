@@ -17,7 +17,7 @@ func TestConfigPrecedence(t *testing.T) {
 	// Test 1: Environment variable only
 	// nolint:errcheck // os.Setenv rarely fails in test setup
 	os.Setenv("TEST_VAR", "from_env")
-	err := Init(context.Background(), "")
+	err := Init(context.Background(), "", "")
 	if err != nil {
 		t.Fatalf("Init failed: %v", err)
 	}
@@ -41,7 +41,7 @@ func TestConfigRequire(t *testing.T) {
 
 	// nolint:errcheck // os.Setenv rarely fails in test setup
 	os.Setenv("REQUIRED_VAR", "value")
-	_ = Init(context.Background(), "")
+	_ = Init(context.Background(), "", "")
 	cfg := Current()
 
 	// Should not panic
@@ -76,7 +76,7 @@ func TestCISkipsEnvFile(t *testing.T) {
 	os.Setenv("CI", "true")
 	os.Setenv("TEST_CI_VAR", "from_env") // nolint:errcheck
 
-	err := Init(context.Background(), envFile)
+	err := Init(context.Background(), envFile, "")
 	if err != nil {
 		t.Fatalf("Init failed: %v", err)
 	}

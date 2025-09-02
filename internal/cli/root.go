@@ -20,6 +20,7 @@ func Execute(ctx context.Context, args []string) error {
 
 	// Global persistent flags
 	root.PersistentFlags().String("envfile", ".env", "Path to .env file (optional)")
+	root.PersistentFlags().String("env", "", "Environment name (dev, staging, prod) - determines .env file and Azure App Config scope")
 	root.PersistentFlags().Bool("verbose", false, "Enable verbose logging")
 
 	// Initialize config/logging before running any subcommand
@@ -28,7 +29,14 @@ func Execute(ctx context.Context, args []string) error {
 		logx.Init(verbose)
 
 		envfile, _ := cmd.Flags().GetString("envfile")
-		if err := config.Init(cmd.Context(), envfile); err != nil {
+		env, _ := cmd.Flags().GetString("env")
+		
+		// If environment is specified, use environment-specific .env file
+		if env != "" && envfile == ".env" {
+			envfile = fmt.Sprintf(".env.%s", env)
+		}
+		
+		if err := config.Init(cmd.Context(), envfile, env); err != nil {
 			return fmt.Errorf("init config: %w", err)
 		}
 		return nil

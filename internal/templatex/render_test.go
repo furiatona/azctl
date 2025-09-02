@@ -11,7 +11,7 @@ func TestRenderEnv(t *testing.T) {
 	// init config with env var in process
 	t.Setenv("FOO", "bar")
 	// minimal init
-	_ = config.Init(context.TODO(), "")
+	_ = config.Init(context.TODO(), "", "")
 	cfg := config.Current()
 
 	input := `{"x":"{{ env "FOO" }}"}`

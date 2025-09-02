@@ -25,7 +25,7 @@ func RequiredVars(cfg *config.Config, vars []string) error {
 // ACRRequiredVars returns the list of variables required for ACR operations.
 func ACRRequiredVars() []string {
 	return []string{
-		"REGISTRY",
+		"ACR_REGISTRY",
 		"ACR_RESOURCE_GROUP",
 		"IMAGE_NAME",
 		"IMAGE_TAG",
@@ -35,8 +35,8 @@ func ACRRequiredVars() []string {
 // WebAppRequiredVars returns the list of variables required for WebApp deployment.
 func WebAppRequiredVars() []string {
 	return []string{
-		"AZURE_RESOURCE_GROUP",
-		"REGISTRY",
+		"RESOURCE_GROUP",
+		"ACR_REGISTRY",
 		"IMAGE_NAME",
 		"IMAGE_TAG",
 	}
@@ -45,7 +45,7 @@ func WebAppRequiredVars() []string {
 // ACIRequiredVars returns the list of variables required for ACI deployment.
 func ACIRequiredVars() []string {
 	return []string{
-		"AZURE_RESOURCE_GROUP",
+		"RESOURCE_GROUP",
 		"CONTAINER_GROUP_NAME",
 		"LOCATION",
 		"OS_TYPE",
@@ -53,7 +53,7 @@ func ACIRequiredVars() []string {
 		"ACI_PORT",
 		"ACI_CPU",
 		"ACI_MEMORY",
-		"IMAGE_REGISTRY",
+		"ACR_REGISTRY",
 		"IMAGE_NAME",
 		"IMAGE_TAG",
 		"ACR_USERNAME",

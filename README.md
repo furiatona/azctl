@@ -51,42 +51,41 @@ make build
 
 1. **Setup Configuration**:
    ```bash
-   cp env.sample .env
-   # Edit .env with your Azure configuration
+   # Copy example environment file
+   cp env.dev.example .env.dev
+   # Edit .env.dev with your Azure configuration
    ```
 
 2. **Build and Push to ACR**:
    ```bash
-   azctl acr
+   azctl acr --env dev
    ```
 
 3. **Deploy to ACI**:
    ```bash
-   azctl aci
+   azctl aci --env dev
    ```
 
 4. **Deploy to WebApp**:
    ```bash
-   azctl webapp
+   azctl webapp --env dev
    ```
 
-> **📖 Need more detailed setup instructions?** See [SETUP.md](SETUP.md) for comprehensive configuration and deployment guides.
+> **📖 Need detailed setup instructions?** See [SETUP.md](SETUP.md) for comprehensive configuration and deployment guides.
+> **🌍 Environment Configuration:** See [ENVIRONMENT_CONFIG.md](ENVIRONMENT_CONFIG.md) for detailed environment management.
 
 ## Basic Usage
 
 ### Build and Push to ACR
 
 ```bash
-# Using environment variables or .env
-azctl acr
+# Using environment-specific .env files
+azctl acr --env dev
+azctl acr --env staging
+azctl acr --env prod
 
 # Using CLI flags
 azctl acr --registry myregistry --image myapp --tag v1.0.0
-
-# With environment-specific config
-azctl acr --env dev
-azctl acr --env staging
-azctl acr --env production
 
 # In CI - environment auto-detected from branch name
 azctl acr  # Auto-detects 'staging' from 'staging' branch
@@ -122,20 +121,6 @@ azctl aci --resource-group my-rg  # Auto-detects environment
 ```
 
 ## Development
-
-```bash
-# Run tests
-make test
-
-# Build binary
-make build
-
-# Lint code
-make lint
-
-# Cross-platform release build
-make release
-```
 
 ```bash
 # Run tests

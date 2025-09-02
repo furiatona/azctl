@@ -23,7 +23,7 @@ type Config struct {
 
 var current *Config
 
-func Init(ctx context.Context, envfile string) error {
+func Init(ctx context.Context, envfile string, env string) error {
 	// Merge order (low -> high): Azure App Config -> .env -> OS env
 	merged := map[string]string{}
 
@@ -43,24 +43,31 @@ func Init(ctx context.Context, envfile string) error {
 		}
 	}
 
-	// Azure App Configuration (lowest precedence) - now with IMAGE_NAME from .env
+	// Azure App Configuration (lowest precedence) - now with environment and IMAGE_NAME from .env
 	if os.Getenv("APP_CONFIG_SKIP") != "true" {
 		name := os.Getenv("APP_CONFIG_NAME")
-		label := os.Getenv("APP_CONFIG_LABEL")
+		if name == "" {
+			name = os.Getenv("APP_CONFIG") // Fallback to APP_CONFIG
+		}
+		label := env // Use environment as label for Azure App Config
 		// Use IMAGE_NAME from .env if available, otherwise from OS env
 		imageName := envImageName
 		if imageName == "" {
 			imageName = os.Getenv("IMAGE_NAME")
 		}
-		logx.Infof("[DEBUG] Using IMAGE_NAME for Azure App Config: '%s'", imageName)
+		logx.Infof("[DEBUG] Using IMAGE_NAME for Azure App Config: '%s', environment: '%s', app config: '%s'", imageName, env, name)
 		if name != "" {
 			if kvs, err := fetchAzureAppConfigWithImage(ctx, name, label, imageName); err != nil {
 				logx.Warnf("azure appconfig fetch failed: %v", err)
 			} else {
+				logx.Infof("[DEBUG] Loaded %d variables from Azure App Config", len(kvs))
 				for k, v := range kvs {
+					logx.Infof("[DEBUG] From Azure App Config: %s='%s'", k, v)
 					merged[strings.ToUpper(k)] = v
 				}
 			}
+		} else {
+			logx.Infof("[DEBUG] No APP_CONFIG_NAME or APP_CONFIG set, skipping Azure App Configuration")
 		}
 	}
 
@@ -93,6 +100,15 @@ func Init(ctx context.Context, envfile string) error {
 		kv := strings.SplitN(env, "=", 2)
 		if len(kv) == 2 {
 			merged[strings.ToUpper(kv[0])] = kv[1]
+		}
+	}
+
+	// Apply fallback logic for common variables
+	if merged["ACR_REGISTRY"] == "" {
+		// Try to derive ACR_REGISTRY from other sources
+		if registry := merged["REGISTRY"]; registry != "" {
+			merged["ACR_REGISTRY"] = registry
+			logx.Infof("[DEBUG] Derived ACR_REGISTRY from REGISTRY: '%s'", registry)
 		}
 	}
 

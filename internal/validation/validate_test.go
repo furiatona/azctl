@@ -10,7 +10,7 @@ import (
 
 func TestRequiredVars(t *testing.T) {
 	// Initialize empty config
-	_ = config.Init(context.Background(), "")
+	_ = config.Init(context.Background(), "", "")
 	cfg := config.Current()
 
 	// Test with missing variables
@@ -45,7 +45,7 @@ func TestRequiredVars(t *testing.T) {
 
 func TestACRRequiredVars(t *testing.T) {
 	vars := ACRRequiredVars()
-	expected := []string{"REGISTRY", "ACR_RESOURCE_GROUP", "IMAGE_NAME", "IMAGE_TAG"}
+	expected := []string{"ACR_REGISTRY", "ACR_RESOURCE_GROUP", "IMAGE_NAME", "IMAGE_TAG"}
 
 	if len(vars) != len(expected) {
 		t.Errorf("expected %d vars, got %d", len(expected), len(vars))
@@ -67,8 +67,8 @@ func TestACRRequiredVars(t *testing.T) {
 
 func TestWebAppRequiredVars(t *testing.T) {
 	vars := WebAppRequiredVars()
-	required := []string{"AZURE_RESOURCE_GROUP", "REGISTRY", "IMAGE_NAME", "IMAGE_TAG"}
-	
+	required := []string{"RESOURCE_GROUP", "ACR_REGISTRY", "IMAGE_NAME", "IMAGE_TAG"}
+
 	for _, req := range required {
 		found := false
 		for _, v := range vars {
@@ -85,8 +85,8 @@ func TestWebAppRequiredVars(t *testing.T) {
 
 func TestACIRequiredVars(t *testing.T) {
 	vars := ACIRequiredVars()
-	required := []string{"AZURE_RESOURCE_GROUP", "CONTAINER_GROUP_NAME", "IMAGE_NAME", "IMAGE_TAG"}
-	
+	required := []string{"RESOURCE_GROUP", "CONTAINER_GROUP_NAME", "IMAGE_NAME", "IMAGE_TAG"}
+
 	for _, req := range required {
 		found := false
 		for _, v := range vars {

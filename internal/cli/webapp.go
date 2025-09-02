@@ -16,7 +16,6 @@ import (
 func newWebAppCmd() *cobra.Command {
 	var (
 		resourceGroup  string
-		envName        string
 		webAppName     string
 		appServicePlan string
 	)
@@ -25,6 +24,9 @@ func newWebAppCmd() *cobra.Command {
 		Use:   "webapp",
 		Short: "Deploy to Azure Web App using container image from ACR",
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			// Get environment from root command
+			envName, _ := cmd.Flags().GetString("env")
+
 			cfg := config.Current()
 
 			// Auto-detect environment in CI if not provided
@@ -41,19 +43,9 @@ func newWebAppCmd() *cobra.Command {
 				return fmt.Errorf("environment required for webapp deployment (--env dev|staging|prod)")
 			}
 
-			// If environment is specified, reload config with environment-specific Azure App Configuration
-			if envName != "" {
-				logx.Infof("[DEBUG] Loading environment-specific config for: %s", envName)
-				if err := reloadConfigWithEnvironment(cmd.Context(), envName); err != nil {
-					return fmt.Errorf("failed to load environment config: %w", err)
-				}
-				cfg = config.Current() // Get the updated config
-				logx.Infof("[DEBUG] Config reloaded for environment: %s", envName)
-			}
-
 			// Apply flag overrides
 			if resourceGroup == "" {
-				resourceGroup = cfg.Get("AZURE_RESOURCE_GROUP")
+				resourceGroup = cfg.Get("RESOURCE_GROUP")
 			}
 			if webAppName == "" {
 				webAppName = getWebAppName(cfg, envName)
@@ -92,13 +84,9 @@ func newWebAppCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&resourceGroup, "resource-group", "", "Resource group (env: AZURE_RESOURCE_GROUP)")
-	cmd.Flags().StringVar(&envName, "env", "", "Environment name (required: dev|staging|prod) (auto-detected in CI)")
+	cmd.Flags().StringVar(&resourceGroup, "resource-group", "", "Resource group (env: RESOURCE_GROUP)")
 	cmd.Flags().StringVar(&webAppName, "name", "", "WebApp name (env: WEBAPP_NAME or <env>_WEBAPP_NAME)")
 	cmd.Flags().StringVar(&appServicePlan, "plan", "", "App Service Plan (env: APP_SERVICE_PLAN or <env>_APP_SERVICE_PLAN)")
-	if err := cmd.MarkFlagRequired("env"); err != nil {
-		logx.Warnf("failed to mark env flag as required: %v", err)
-	}
 	return cmd
 }
 
@@ -155,16 +143,16 @@ func createWebApp(ctx context.Context, resourceGroup, webAppName, appServicePlan
 
 // updateWebApp updates an existing WebApp with container configuration
 func updateWebApp(ctx context.Context, resourceGroup, webAppName string, cfg *config.Config) error {
-	registry := cfg.Get("REGISTRY")
+	registry := cfg.Get("ACR_REGISTRY")
 	imageName := cfg.Get("IMAGE_NAME")
 	imageTag := cfg.Get("IMAGE_TAG")
 
 	if registry == "" || imageName == "" || imageTag == "" {
-		return fmt.Errorf("missing required variables: REGISTRY, IMAGE_NAME, IMAGE_TAG")
+		return fmt.Errorf("missing required variables: ACR_REGISTRY, IMAGE_NAME, IMAGE_TAG")
 	}
 
-	fullImageName := fmt.Sprintf("%s.azurecr.io/%s:%s", registry, imageName, imageTag)
-	registryUrl := fmt.Sprintf("https://%s.azurecr.io", registry)
+	fullImageName := fmt.Sprintf("%s/%s:%s", registry, imageName, imageTag)
+	registryUrl := fmt.Sprintf("https://%s", registry)
 
 	args := []string{
 		"webapp", "config", "container", "set",

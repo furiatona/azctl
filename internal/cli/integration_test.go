@@ -10,7 +10,7 @@ import (
 func TestACRCommandValidation(t *testing.T) {
 	// Clean environment
 	defer func() {
-		for _, v := range []string{"REGISTRY", "ACR_RESOURCE_GROUP", "IMAGE_NAME", "IMAGE_TAG"} {
+		for _, v := range []string{"ACR_REGISTRY", "ACR_RESOURCE_GROUP", "IMAGE_NAME", "IMAGE_TAG"} {
 			// nolint:errcheck // os.Unsetenv rarely fails in test cleanup
 			os.Unsetenv(v)
 		}
@@ -24,7 +24,7 @@ func TestACRCommandValidation(t *testing.T) {
 	// Check that the error contains the expected message about missing required variables
 	if err.Error() != "missing required variable: IMAGE_NAME" &&
 		err.Error() != "missing required variable: IMAGE_TAG" &&
-		err.Error() != "missing required variable: REGISTRY" {
+		err.Error() != "missing required variable: ACR_REGISTRY" {
 		t.Errorf("unexpected error message: %v", err)
 	}
 }
@@ -75,6 +75,7 @@ func TestCIEnvironmentDetection(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Clean up any existing CI environment variables
 			for _, envVar := range []string{"CI", "GITHUB_ACTIONS", "AZURE_PIPELINE", "GITLAB_CI", "JENKINS_URL", "TRAVIS", "CIRCLECI"} {
+				// nolint:errcheck // os.Unsetenv rarely fails in test cleanup
 				os.Unsetenv(envVar)
 			}
 
@@ -90,6 +91,7 @@ func TestCIEnvironmentDetection(t *testing.T) {
 
 			// Clean up
 			for k := range tt.envVars {
+				// nolint:errcheck // os.Unsetenv rarely fails in test cleanup
 				os.Unsetenv(k)
 			}
 		})
@@ -171,6 +173,7 @@ func TestEnvironmentDetectionFromCI(t *testing.T) {
 
 			// Clean up
 			for k := range tt.envVars {
+				// nolint:errcheck // os.Unsetenv rarely fails in test cleanup
 				os.Unsetenv(k)
 			}
 		})
@@ -199,14 +202,18 @@ func TestACIDeployCommandValidation(t *testing.T) {
 
 func TestACIDryRun(t *testing.T) {
 	// Set minimal required environment variables
-	t.Setenv("AZURE_RESOURCE_GROUP", "test-rg")
+	t.Setenv("RESOURCE_GROUP", "test-rg")
 	t.Setenv("CONTAINER_GROUP_NAME", "test-container")
 	t.Setenv("LOCATION", "eastus")
 	t.Setenv("OS_TYPE", "Linux")
 	t.Setenv("ACI_PORT", "8080")
 	t.Setenv("ACI_CPU", "1")
 	t.Setenv("ACI_MEMORY", "2")
-	t.Setenv("IMAGE_REGISTRY", "testregistry")
+	t.Setenv("CPU", "1")
+	t.Setenv("MEMORY", "2")
+	t.Setenv("PORT", "8080")
+	t.Setenv("ACR_REGISTRY", "testregistry")
+
 	t.Setenv("IMAGE_NAME", "testapp")
 	t.Setenv("IMAGE_TAG", "v1.0.0")
 	t.Setenv("ACR_USERNAME", "testuser")
@@ -214,15 +221,15 @@ func TestACIDryRun(t *testing.T) {
 	t.Setenv("DNS_NAME_LABEL", "test-app")
 
 	// Application-specific variables (from template)
-	t.Setenv("FIREBASE_KEY", "test-key")
-	t.Setenv("FIREBASE_URL", "https://test.firebase.co")
-	t.Setenv("SAGEMAKER_OPENAI_MODEL", "test-model")
-	t.Setenv("SAGEMAKER_OPENAI_API_KEY", "test-api-key")
-	t.Setenv("OPENAI_SAGEMAKER_EMBEDDINGS_ENDPOINT", "https://test.example.com")
-	t.Setenv("LOG_SHARE_NAME", "test-logs")
+	t.Setenv("SUPABASE_KEY", "test-supabase-key")
+	t.Setenv("SUPABASE_URL", "https://test.supabase.co")
+	t.Setenv("AZURE_OPENAI_MODEL", "test-model")
+	t.Setenv("AZURE_OPENAI_API_KEY", "test-api-key")
+	t.Setenv("OPENAI_AZURE_EMBEDDINGS_ENDPOINT", "https://test.example.com")
+	t.Setenv("LOG_STORAGE_NAME", "test-logs")
 	t.Setenv("LOG_STORAGE_ACCOUNT", "teststorage")
 	t.Setenv("LOG_STORAGE_KEY", "test-storage-key")
-	t.Setenv("FLUENTBIT_CONFIG_SHARE", "test-config")
+	t.Setenv("FLUENTBIT_CONFIG", "test-config")
 
 	// Test dry-run (should succeed and create file)
 	err := Execute(context.Background(), []string{"aci", "--dry-run", "--template", "../../deploy/manifests/aci.json"})
@@ -260,12 +267,15 @@ func TestHelpCommands(t *testing.T) {
 		err := Execute(context.Background(), args)
 
 		// Restore stdout/stderr
+		// nolint:errcheck // w.Close rarely fails in test cleanup
 		w.Close()
 		os.Stdout = oldStdout
 		os.Stderr = oldStderr
 
 		// Read and discard output
+		// nolint:errcheck // io.Copy and r.Close rarely fail in test cleanup
 		io.Copy(io.Discard, r)
+		// nolint:errcheck // r.Close rarely fails in test cleanup
 		r.Close()
 
 		// Help commands should not return an error

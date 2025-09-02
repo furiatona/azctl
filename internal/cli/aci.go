@@ -20,7 +20,6 @@ import (
 func newACICmd() *cobra.Command {
 	var (
 		resourceGroup string
-		envName       string
 		templatePath  string
 		dryRun        bool
 	)
@@ -29,6 +28,9 @@ func newACICmd() *cobra.Command {
 		Use:   "aci",
 		Short: "Deploy Azure Container Instance with sidecar using JSON template",
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			// Get environment from root command
+			envName, _ := cmd.Flags().GetString("env")
+
 			// Check for production environment early
 			if envName == "prod" || envName == "production" {
 				logx.Infof("Production deployment is coming soon!")
@@ -47,14 +49,10 @@ func newACICmd() *cobra.Command {
 				}
 			}
 
-			// If environment is specified, reload config with environment-specific Azure App Configuration
+			// Set environment name for Fluent-bit configuration
 			if envName != "" {
-				logx.Infof("[DEBUG] Loading environment-specific config for: %s", envName)
-				if err := reloadConfigWithEnvironment(cmd.Context(), envName); err != nil {
-					return fmt.Errorf("failed to load environment config: %w", err)
-				}
-				cfg = config.Current() // Get the updated config
-				logx.Infof("[DEBUG] Config reloaded for environment: %s", envName)
+				cfg.Set("ENV_NAME", envName)
+				logx.Infof("[DEBUG] Set ENV_NAME='%s' for Fluent-bit config", envName)
 			}
 
 			if templatePath == "" {
@@ -71,44 +69,25 @@ func newACICmd() *cobra.Command {
 
 			// Apply flag overrides
 			if resourceGroup == "" {
-				resourceGroup = cfg.Get("AZURE_RESOURCE_GROUP")
+				resourceGroup = cfg.Get("RESOURCE_GROUP")
 			}
 
-			// Map environment-specific resource groups to AZURE_RESOURCE_GROUP
+			// Map environment-specific resource groups to RESOURCE_GROUP
 			if resourceGroup == "" {
 				envResourceGroupKey := fmt.Sprintf("%s_RESOURCE_GROUP", strings.ToUpper(envName))
 				resourceGroup = cfg.Get(envResourceGroupKey)
 				if resourceGroup != "" {
-					cfg.Set("AZURE_RESOURCE_GROUP", resourceGroup)
-					logx.Infof("[DEBUG] Mapped %s='%s' to AZURE_RESOURCE_GROUP", envResourceGroupKey, resourceGroup)
+					cfg.Set("RESOURCE_GROUP", resourceGroup)
+					logx.Infof("[DEBUG] Mapped %s='%s' to RESOURCE_GROUP", envResourceGroupKey, resourceGroup)
 				}
 			}
 
-			// Map REGISTRY to IMAGE_REGISTRY for ACI compatibility
+			// Map ACR_REGISTRY to IMAGE_REGISTRY for template compatibility
 			if cfg.Get("IMAGE_REGISTRY") == "" {
-				registry := cfg.Get("REGISTRY")
-				if registry != "" {
-					cfg.Set("IMAGE_REGISTRY", registry)
-					logx.Infof("[DEBUG] Mapped REGISTRY='%s' to IMAGE_REGISTRY", registry)
-				}
-			}
-
-			// Map ACI_* variables to their non-prefixed versions for template compatibility
-			aciMappings := map[string]string{
-				"ACI_SUPABASE_KEY":                     "SUPABASE_KEY",
-				"ACI_SUPABASE_URL":                     "SUPABASE_URL",
-				"ACI_AZURE_OPENAI_API_KEY":             "AZURE_OPENAI_API_KEY",
-				"ACI_OPENAI_AZURE_EMBEDDINGS_ENDPOINT": "OPENAI_AZURE_EMBEDDINGS_ENDPOINT",
-				"ACI_AZURE_OPENAI_MODEL":               "AZURE_OPENAI_MODEL",
-			}
-
-			for aciKey, mappedKey := range aciMappings {
-				if cfg.Get(mappedKey) == "" {
-					aciValue := cfg.Get(aciKey)
-					if aciValue != "" {
-						cfg.Set(mappedKey, aciValue)
-						logx.Infof("[DEBUG] Mapped %s='%s' to %s", aciKey, aciValue, mappedKey)
-					}
+				acrRegistry := cfg.Get("ACR_REGISTRY")
+				if acrRegistry != "" {
+					cfg.Set("IMAGE_REGISTRY", acrRegistry)
+					logx.Infof("[DEBUG] Mapped ACR_REGISTRY='%s' to IMAGE_REGISTRY", acrRegistry)
 				}
 			}
 
@@ -175,7 +154,6 @@ func newACICmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&resourceGroup, "resource-group", "", "Resource group (env: AZURE_RESOURCE_GROUP)")
-	cmd.Flags().StringVar(&envName, "env", "", "Environment name; optional to select app config scope (auto-detected in CI)")
 	cmd.Flags().StringVar(&templatePath, "template", "", "Path to aci.json template")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Generate ACI JSON without deploying (outputs to .azctl/aci-dry-run.json)")
 	return cmd

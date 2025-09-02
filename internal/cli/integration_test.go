@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"io"
 	"os"
 	"testing"
 )
@@ -244,7 +245,24 @@ func TestHelpCommands(t *testing.T) {
 	}
 
 	for _, args := range tests {
+		// Capture stdout/stderr to prevent test output pollution
+		oldStdout := os.Stdout
+		oldStderr := os.Stderr
+		r, w, _ := os.Pipe()
+		os.Stdout = w
+		os.Stderr = w
+
 		err := Execute(context.Background(), args)
+
+		// Restore stdout/stderr
+		w.Close()
+		os.Stdout = oldStdout
+		os.Stderr = oldStderr
+
+		// Read and discard output
+		io.Copy(io.Discard, r)
+		r.Close()
+
 		// Help commands should not return an error
 		if err != nil {
 			t.Errorf("help command %v should not error: %v", args, err)

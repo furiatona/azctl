@@ -57,7 +57,13 @@ func collectBuildArgs(cfg *config.Config) []string {
 
 func newACRCmd() *cobra.Command {
 	var (
-		envName string
+		envName       string
+		registry      string
+		resourceGroup string
+		imageName     string
+		imageTag      string
+		contextPath   string
+		file          string
 	)
 
 	cmd := &cobra.Command{
@@ -85,6 +91,20 @@ func newACRCmd() *cobra.Command {
 				logx.Infof("[DEBUG] Config reloaded for environment: %s", envName)
 			}
 
+			// Apply flag overrides to config
+			if registry != "" {
+				cfg.Set("REGISTRY", registry)
+			}
+			if resourceGroup != "" {
+				cfg.Set("ACR_RESOURCE_GROUP", resourceGroup)
+			}
+			if imageName != "" {
+				cfg.Set("IMAGE_NAME", imageName)
+			}
+			if imageTag != "" {
+				cfg.Set("IMAGE_TAG", imageTag)
+			}
+
 			// Validate required variables
 			requiredVars := []string{"IMAGE_NAME", "IMAGE_TAG", "REGISTRY"}
 			for _, varName := range requiredVars {
@@ -105,9 +125,9 @@ func newACRCmd() *cobra.Command {
 			}
 
 			// Build and push image
-			imageName := cfg.Get("IMAGE_NAME")
-			imageTag := cfg.Get("IMAGE_TAG")
-			registry := cfg.Get("REGISTRY")
+			imageName = cfg.Get("IMAGE_NAME")
+			imageTag = cfg.Get("IMAGE_TAG")
+			registry = cfg.Get("REGISTRY")
 			fullImageName := fmt.Sprintf("%s.azurecr.io/%s:%s", registry, imageName, imageTag)
 
 			logx.Printf("Building and pushing image: %s", fullImageName)
@@ -118,7 +138,11 @@ func newACRCmd() *cobra.Command {
 				"--registry", registry,
 				"--image", fmt.Sprintf("%s:%s", imageName, imageTag),
 				"--resource-group", acrResourceGroup,
-				".",
+			}
+
+			// Add Dockerfile path if specified
+			if file != "" {
+				args = append(args, "--file", file)
 			}
 
 			// Add build arguments if any NEXT_PUBLIC_ variables are set
@@ -127,6 +151,12 @@ func newACRCmd() *cobra.Command {
 				logx.Infof("Adding build arguments: %v", buildArgs)
 				args = append(args, buildArgs...)
 			}
+
+			// Add context path (defaults to ".")
+			if contextPath == "" {
+				contextPath = "."
+			}
+			args = append(args, contextPath)
 
 			if err := runx.AZ(cmd.Context(), args...); err != nil {
 				return fmt.Errorf("failed to build and push image: %w", err)
@@ -138,5 +168,11 @@ func newACRCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&envName, "env", "", "Environment name; optional to select app config scope (auto-detected in CI)")
+	cmd.Flags().StringVar(&registry, "registry", "", "ACR registry name (env: REGISTRY)")
+	cmd.Flags().StringVar(&resourceGroup, "resource-group", "", "Resource group for ACR (env: ACR_RESOURCE_GROUP)")
+	cmd.Flags().StringVar(&imageName, "image", "", "Image name (env: IMAGE_NAME)")
+	cmd.Flags().StringVar(&imageTag, "tag", "", "Image tag (env: IMAGE_TAG)")
+	cmd.Flags().StringVar(&contextPath, "context", ".", "Build context path")
+	cmd.Flags().StringVar(&file, "file", "", "Dockerfile path")
 	return cmd
 }

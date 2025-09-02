@@ -34,7 +34,7 @@ jobs:
           username: ${{ secrets.CPANEL_USER }}
           password: ${{ secrets.CPANEL_PASS }}
           port: ${{ secrets.CPANEL_PORT }}
-          source: "dist/azctl_*"
+          source: "dist/*"
           target: "/home/${{ secrets.CPANEL_USER }}/subdomains/dl.furiatona.dev/temp"
       - name: Create version directory and move files
         uses: appleboy/ssh-action@v1.0.3
@@ -45,7 +45,7 @@ jobs:
           port: ${{ secrets.CPANEL_PORT }}
           script: |
             VERSION=${GITHUB_REF#refs/tags/}
-            cd /home/${{ secrets.CPANEL_USER }}/subdomains/dl.${{ secrets.CPANEL_USER }}.dev
+            cd /home/${{ secrets.CPANEL_USER }}/subdomains/dl.furiatona.dev
             rm -rf azctl/$VERSION && mkdir -p azctl/$VERSION
             mv temp/azctl_* azctl/$VERSION/
             rm -rf temp

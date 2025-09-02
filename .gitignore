@@ -3,7 +3,6 @@ dist/
 .azctl/
 .env
 
-deploy
 aci.json
 
 RELEASE_PREP.md

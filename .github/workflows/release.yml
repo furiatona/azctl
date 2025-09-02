@@ -1,0 +1,71 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  test-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.x'
+      - run: go mod download
+      - run: go vet ./...
+      - run: go test ./...
+      - name: Lint GitHub Actions
+        run: |
+          # Install actionlint if not available
+          if ! command -v actionlint >/dev/null 2>&1; then
+            curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash | bash -s -- -b /usr/local/bin
+          fi
+          # Check GitHub Actions workflows
+          actionlint .github/workflows/*.yml
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.x'
+      - name: Build binaries
+        run: |
+          make release
+      - name: Upload files
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.CPANEL_HOST }}
+          username: ${{ secrets.CPANEL_USER }}
+          password: ${{ secrets.CPANEL_PASS }}
+          port: ${{ secrets.CPANEL_PORT }}
+          source: "dist/"
+          target: "/home/${{ secrets.CPANEL_USER }}/dl.furiatona.dev/azctl"
+      - name: Update latest symlink
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.CPANEL_HOST }}
+          username: ${{ secrets.CPANEL_USER }}
+          password: ${{ secrets.CPANEL_PASS }}
+          port: ${{ secrets.CPANEL_PORT }}
+          script: |
+            VERSION="${GITHUB_REF#refs/tags/}"
+            cd /home/${{ secrets.CPANEL_USER }}/dl.furiatona.dev/azctl
+            mkdir -p "${VERSION}"
+            mv * "${VERSION}/" 2>/dev/null || true
+            ln -sfn "${VERSION}" latest
+            echo "✅ Files uploaded to dl.furiatona.dev/azctl/${VERSION}/"
+            echo "✅ Latest symlink updated to point to ${VERSION}"
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*
+
+

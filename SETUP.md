@@ -342,6 +342,112 @@ jobs:
         run: ./azctl aci
 ```
 
+## CI/CD Integration
+
+Set environment variables in your CI system. The `.env` file is automatically skipped when `CI=true`.
+
+### GitHub Actions Example
+
+```yaml
+name: Deploy to Azure
+
+on:
+  push:
+    branches: [staging, main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      
+      - name: Download azctl
+        run: |
+          curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl_linux_amd64 -o azctl
+          chmod +x azctl
+      
+      - name: Deploy to ACI
+        env:
+          RESOURCE_GROUP: rg-myapp-${{ github.ref_name }}
+          APP_CONFIG: myapp-app-conf-${{ github.ref_name == 'main' && 'prod' || github.ref_name }}
+          ACI_SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          ./azctl aci  # Environment auto-detected!
+```
+
+### Azure Pipeline Example
+
+```yaml
+trigger:
+  branches:
+    include:
+    - staging
+    - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  RESOURCE_GROUP: 'rg-myapp-$(Build.SourceBranchName)'
+  APP_CONFIG: 'myapp-app-conf-$(Build.SourceBranchName)'
+
+steps:
+- task: AzureCLI@2
+  inputs:
+    azureSubscription: 'MyAzureSubscription'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      # Download azctl
+      curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl_linux_amd64 -o azctl
+      chmod +x azctl
+      
+      # Deploy (environment auto-detected)
+      ./azctl aci
+```
+
+### Basic CI/CD Example
+
+```yaml
+name: Deploy
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download azctl
+        run: |
+          curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl_linux_amd64 -o azctl
+          chmod +x azctl
+      
+      - name: Deploy to ACR
+        env:
+          REGISTRY: ${{ secrets.REGISTRY }}
+          IMAGE_NAME: my-app
+          IMAGE_TAG: ${{ github.sha }}
+          ACR_RESOURCE_GROUP: ${{ secrets.ACR_RESOURCE_GROUP }}
+        run: ./azctl acr
+      
+      - name: Deploy to ACI
+        env:
+          AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
+          CONTAINER_GROUP_NAME: my-app-container
+          IMAGE_REGISTRY: ${{ secrets.REGISTRY }}
+          IMAGE_NAME: my-app
+          IMAGE_TAG: ${{ github.sha }}
+          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+        run: ./azctl aci
+```
+
 ## Troubleshooting
 
 ### Common Issues

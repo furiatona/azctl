@@ -39,7 +39,7 @@ jobs:
       - name: Create version directory and move files
         uses: appleboy/ssh-action@v1.0.3
         env:
-          VERSION: ${{ github.ref_name }}
+          VERSION: v0.2.0
         with:
           host: ${{ secrets.CPANEL_HOST }}
           username: ${{ secrets.CPANEL_USER }}

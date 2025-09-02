@@ -1,0 +1,85 @@
+{
+  "name": "{{ env "CONTAINER_GROUP_NAME" }}",
+  "location": "{{ env "LOCATION" }}",
+  "type": "Microsoft.ContainerInstance/containerGroups",
+  "apiVersion": "2019-12-01",
+  "properties": {
+    "osType": "{{ env "OS_TYPE" }}",
+    "restartPolicy": "Always",
+    "ipAddress": {
+      "type": "Public",
+      "dnsNameLabel": "{{ env "DNS_NAME_LABEL" }}",
+      "ports": [
+        { "protocol": "TCP", "port": {{ env "ACI_PORT" }} }
+      ]
+    },
+    "containers": [
+      {
+        "name": "app",
+        "properties": {
+          "image": "{{ env "IMAGE_REGISTRY" }}.azurecr.io/{{ env "IMAGE_NAME" }}:{{ env "IMAGE_TAG" }}",
+          "resources": {
+            "requests": { 
+              "cpu": {{ env "ACI_CPU" }}, 
+              "memoryInGB": {{ env "ACI_MEMORY" }} 
+            }
+          },
+          "ports": [
+            { "protocol": "TCP", "port": {{ env "ACI_PORT" }} }
+          ],
+          "environmentVariables": [
+            { "name": "FIREBASE_KEY", "value": "{{ env "FIREBASE_KEY" }}" },
+            { "name": "FIREBASE_URL", "value": "{{ env "FIREBASE_URL" }}" },
+            { "name": "SAGEMAKER_OPENAI_MODEL", "value": "{{ env "SAGEMAKER_OPENAI_MODEL" }}" },
+            { "name": "SAGEMAKER_OPENAI_API_KEY", "value": "{{ env "SAGEMAKER_OPENAI_API_KEY" }}" },
+            { "name": "OPENAI_SAEMAKER_EMBEDDINGS_ENDPOINT", "value": "{{ env "OPENAI_SAGEMAKER_EMBEDDINGS_ENDPOINT" }}" }
+          ],
+          "volumeMounts": [
+            { "name": "applogs", "mountPath": "/var/log/app" }
+          ]
+        }
+      },
+      {
+        "name": "fluentbit",
+        "properties": {
+          "image": "fluent-bit/fluent-bit:4.0.8",
+          "resources": {
+            "requests": { "cpu": 0.25, "memoryInGB": 0.3 }
+          },
+          "volumeMounts": [
+            { "name": "applogs", "mountPath": "/var/log/app" },
+            { "name": "fluentbitconf", "mountPath": "/fluent-bit/etc" }
+          ],
+          "command": ["/fluent-bit/bin/fluent-bit", "-c", "/fluent-bit/etc/{{ env "IMAGE_NAME" }}.conf"]
+        }
+      }
+    ],
+    "volumes": [
+      {
+        "name": "applogs",
+        "azureFile": {
+          "shareName": "{{ env "LOG_SHARE_NAME" }}",
+          "storageAccountName": "{{ env "LOG_STORAGE_ACCOUNT" }}",
+          "storageAccountKey": "{{ env "LOG_STORAGE_KEY" }}",
+          "readOnly": false
+        }
+      },
+      {
+        "name": "fluentbitconf",
+        "azureFile": {
+          "shareName": "{{ env "FLUENTBIT_CONFIG_SHARE" }}",
+          "storageAccountName": "{{ env "LOG_STORAGE_ACCOUNT" }}",
+          "storageAccountKey": "{{ env "LOG_STORAGE_KEY" }}",
+          "readOnly": true
+        }
+      }
+    ],
+    "imageRegistryCredentials": [
+      {
+        "server": "{{ env "IMAGE_REGISTRY" }}.azurecr.io",
+        "username": "{{ env "ACR_USERNAME" }}",
+        "password": "{{ env "ACR_PASSWORD" }}"
+      }
+    ]
+  }
+}

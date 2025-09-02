@@ -58,7 +58,7 @@ func detectEnvironmentFromCI() string {
 	return ""
 }
 
-n// detectImageNameFromCI detects the image name from CI context
+// detectImageNameFromCI detects the image name from CI context
 func detectImageNameFromCI() string {
 	// Try to detect from GitHub Actions
 	if os.Getenv("GITHUB_ACTIONS") == "true" {

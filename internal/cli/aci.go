@@ -38,6 +38,15 @@ func newACICmd() *cobra.Command {
 
 			cfg := config.Current()
 
+			// Auto-detect environment in CI if not provided
+			if envName == "" && isCIEnvironment() {
+				detectedEnv := detectEnvironmentFromCI()
+				if detectedEnv != "" {
+					envName = detectedEnv
+					logx.Infof("[DEBUG] Auto-detected environment in CI: %s", envName)
+				}
+			}
+
 			// If environment is specified, reload config with environment-specific Azure App Configuration
 			if envName != "" {
 				logx.Infof("[DEBUG] Loading environment-specific config for: %s", envName)
@@ -166,7 +175,7 @@ func newACICmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&resourceGroup, "resource-group", "", "Resource group (env: AZURE_RESOURCE_GROUP)")
-	cmd.Flags().StringVar(&envName, "env", "", "Environment name; optional to select app config scope")
+	cmd.Flags().StringVar(&envName, "env", "", "Environment name; optional to select app config scope (auto-detected in CI)")
 	cmd.Flags().StringVar(&templatePath, "template", "", "Path to aci.json template")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Generate ACI JSON without deploying (outputs to .azctl/aci-dry-run.json)")
 	return cmd

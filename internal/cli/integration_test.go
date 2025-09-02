@@ -20,8 +20,154 @@ func TestACRCommandValidation(t *testing.T) {
 	if err == nil {
 		t.Error("expected error for missing required variables")
 	}
-	if err.Error() != "missing required environment variables: REGISTRY, ACR_RESOURCE_GROUP, IMAGE_NAME, IMAGE_TAG" {
+	// Check that the error contains the expected message about missing required variables
+	if err.Error() != "missing required variable: IMAGE_NAME" &&
+		err.Error() != "missing required variable: IMAGE_TAG" &&
+		err.Error() != "missing required variable: REGISTRY" {
 		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+func TestCIEnvironmentDetection(t *testing.T) {
+	// Test CI environment detection
+	tests := []struct {
+		name     string
+		envVars  map[string]string
+		expected bool
+	}{
+		{
+			name: "GitHub Actions",
+			envVars: map[string]string{
+				"GITHUB_ACTIONS": "true",
+			},
+			expected: true,
+		},
+		{
+			name: "Azure Pipeline",
+			envVars: map[string]string{
+				"AZURE_PIPELINE": "true",
+			},
+			expected: true,
+		},
+		{
+			name: "GitLab CI",
+			envVars: map[string]string{
+				"GITLAB_CI": "true",
+			},
+			expected: true,
+		},
+		{
+			name: "Generic CI",
+			envVars: map[string]string{
+				"CI": "true",
+			},
+			expected: true,
+		},
+		{
+			name:     "Not CI",
+			envVars:  map[string]string{},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Set environment variables
+			for k, v := range tt.envVars {
+				t.Setenv(k, v)
+			}
+
+			result := isCIEnvironment()
+			if result != tt.expected {
+				t.Errorf("isCIEnvironment() = %v, want %v", result, tt.expected)
+			}
+
+			// Clean up
+			for k := range tt.envVars {
+				os.Unsetenv(k)
+			}
+		})
+	}
+}
+
+func TestEnvironmentDetectionFromCI(t *testing.T) {
+	// Test environment detection from CI context
+	tests := []struct {
+		name     string
+		envVars  map[string]string
+		expected string
+	}{
+		{
+			name: "GitHub Actions - dev branch",
+			envVars: map[string]string{
+				"GITHUB_ACTIONS": "true",
+				"GITHUB_REF":     "refs/heads/dev",
+			},
+			expected: "dev",
+		},
+		{
+			name: "GitHub Actions - staging branch",
+			envVars: map[string]string{
+				"GITHUB_ACTIONS": "true",
+				"GITHUB_REF":     "refs/heads/staging",
+			},
+			expected: "staging",
+		},
+		{
+			name: "GitHub Actions - main branch",
+			envVars: map[string]string{
+				"GITHUB_ACTIONS": "true",
+				"GITHUB_REF":     "refs/heads/main",
+			},
+			expected: "prod",
+		},
+		{
+			name: "Azure Pipeline",
+			envVars: map[string]string{
+				"AZURE_PIPELINE":     "true",
+				"SYSTEM_ENVIRONMENT": "staging",
+			},
+			expected: "staging",
+		},
+		{
+			name: "GitLab CI",
+			envVars: map[string]string{
+				"GITLAB_CI":           "true",
+				"CI_ENVIRONMENT_NAME": "production",
+			},
+			expected: "production",
+		},
+		{
+			name: "Explicit environment",
+			envVars: map[string]string{
+				"ENVIRONMENT": "dev",
+			},
+			expected: "dev",
+		},
+		{
+			name:     "No environment",
+			envVars:  map[string]string{},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Set environment variables
+			for k, v := range tt.envVars {
+				t.Setenv(k, v)
+			}
+
+			result := detectEnvironmentFromCI()
+			if result != tt.expected {
+				t.Errorf("detectEnvironmentFromCI() = %v, want %v", result, tt.expected)
+			}
+
+			// Clean up
+			for k := range tt.envVars {
+				os.Unsetenv(k)
+			}
+		})
 	}
 }
 

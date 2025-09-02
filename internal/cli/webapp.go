@@ -27,9 +27,28 @@ func newWebAppCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg := config.Current()
 
+			// Auto-detect environment in CI if not provided
+			if envName == "" && isCIEnvironment() {
+				detectedEnv := detectEnvironmentFromCI()
+				if detectedEnv != "" {
+					envName = detectedEnv
+					logx.Infof("[DEBUG] Auto-detected environment in CI: %s", envName)
+				}
+			}
+
 			// Environment is required for WebApp deployment
 			if envName == "" {
 				return fmt.Errorf("environment required for webapp deployment (--env dev|staging|prod)")
+			}
+
+			// If environment is specified, reload config with environment-specific Azure App Configuration
+			if envName != "" {
+				logx.Infof("[DEBUG] Loading environment-specific config for: %s", envName)
+				if err := reloadConfigWithEnvironment(cmd.Context(), envName); err != nil {
+					return fmt.Errorf("failed to load environment config: %w", err)
+				}
+				cfg = config.Current() // Get the updated config
+				logx.Infof("[DEBUG] Config reloaded for environment: %s", envName)
 			}
 
 			// Apply flag overrides
@@ -74,7 +93,7 @@ func newWebAppCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&resourceGroup, "resource-group", "", "Resource group (env: AZURE_RESOURCE_GROUP)")
-	cmd.Flags().StringVar(&envName, "env", "", "Environment name (required: dev|staging|prod)")
+	cmd.Flags().StringVar(&envName, "env", "", "Environment name (required: dev|staging|prod) (auto-detected in CI)")
 	cmd.Flags().StringVar(&webAppName, "name", "", "WebApp name (env: WEBAPP_NAME or <env>_WEBAPP_NAME)")
 	cmd.Flags().StringVar(&appServicePlan, "plan", "", "App Service Plan (env: APP_SERVICE_PLAN or <env>_APP_SERVICE_PLAN)")
 	if err := cmd.MarkFlagRequired("env"); err != nil {

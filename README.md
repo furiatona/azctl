@@ -9,6 +9,7 @@ A production-ready Go CLI tool that wraps Azure CLI commands for container deplo
 - **ACI Deployment**: Deploy containers with sidecar support using JSON templates  
 - **Config Management**: Multi-source configuration with proper precedence
 - **Environment Support**: Seamless local development and CI/CD integration
+- **CI Environment Detection**: Automatic environment detection and variable mapping
 - **Validation**: Clear error messages for missing configuration
 
 ## Installation
@@ -80,6 +81,47 @@ make build
 3. **.env File** - Local development only (skipped when `CI=true`)
 4. **Azure App Configuration** - Centralized defaults (optional)
 
+### Environment Variable Naming
+
+#### Local Development (`.env` file)
+Use environment-specific prefixed variables for clarity:
+
+```bash
+# Development environment
+DEV_RESOURCE_GROUP=rg-swarm-dev
+DEV_APP_CONFIG=chiswarm-app-conf-dev
+DEV_WEBAPP_NAME=swarm-website-dev
+
+# Staging environment  
+STAGING_RESOURCE_GROUP=rg-swarm-staging
+STAGING_APP_CONFIG=chiswarm-app-conf
+STAGING_WEBAPP_NAME=swarm-website-staging
+
+# Production environment
+PROD_RESOURCE_GROUP=rg-swarm-prod
+PROD_APP_CONFIG=chiswarm-app-conf-prod
+PROD_WEBAPP_NAME=swarm-website-prod
+```
+
+#### CI Environments (GitHub Actions, Azure Pipelines)
+Use non-prefixed variables for cleaner configuration:
+
+```yaml
+# GitHub Actions workflow
+env:
+  RESOURCE_GROUP: rg-swarm-staging
+  APP_CONFIG: chiswarm-app-conf
+  WEBAPP_NAME: swarm-website-staging
+  ACI_SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+  ACI_FIREBASE_KEY: ${{ secrets.FIREBASE_KEY }}
+```
+
+The tool automatically:
+1. **Detects CI environment** (GitHub Actions, Azure Pipeline, GitLab CI, etc.)
+2. **Auto-detects environment** (dev/staging/prod) from branch name
+3. **Maps prefixed variables** to non-prefixed versions
+4. **Uses appropriate configuration** for the detected environment
+
 ### Required Variables
 
 #### ACR Commands
@@ -118,6 +160,9 @@ azctl acr --registry myregistry --image myapp --tag v1.0.0 --resource-group my-r
 azctl acr --env dev
 azctl acr --env staging
 azctl acr --env production
+
+# In CI - environment auto-detected from branch name
+azctl acr  # Auto-detects 'staging' from 'staging' branch
 ```
 
 ### Deploy to WebApp
@@ -128,6 +173,9 @@ azctl webapp --env staging --resource-group my-rg
 
 # Deploy with custom WebApp name
 azctl webapp --env production --name my-custom-webapp
+
+# In CI - environment auto-detected
+azctl webapp --resource-group my-rg  # Auto-detects environment
 ```
 
 ### Deploy to ACI
@@ -141,6 +189,75 @@ azctl aci --template ./my-aci-template.json --env production
 
 # Dry run - generate JSON without deploying
 azctl aci --dry-run --env staging --resource-group staging-rg
+
+# In CI - environment auto-detected
+azctl aci --resource-group my-rg  # Auto-detects environment
+```
+
+## CI/CD Integration
+
+### GitHub Actions Example
+
+```yaml
+name: Deploy to Azure
+
+on:
+  push:
+    branches: [staging, main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      
+      - name: Deploy to ACI
+        env:
+          RESOURCE_GROUP: rg-swarm-${{ github.ref_name }}
+          APP_CONFIG: chiswarm-app-conf-${{ github.ref_name == 'main' && 'prod' || github.ref_name }}
+          ACI_SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          ACI_FIREBASE_KEY: ${{ secrets.FIREBASE_KEY }}
+        run: |
+          # Download azctl
+          curl -L https://dl.furiatona.dev/azctl/latest/azctl-linux-amd64 -o azctl
+          chmod +x azctl
+          
+          # Deploy (environment auto-detected from branch name)
+          ./azctl aci
+```
+
+### Azure Pipeline Example
+
+```yaml
+trigger:
+  branches:
+    include:
+    - staging
+    - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  RESOURCE_GROUP: 'rg-swarm-$(Build.SourceBranchName)'
+  APP_CONFIG: 'chiswarm-app-conf-$(Build.SourceBranchName)'
+
+steps:
+- task: AzureCLI@2
+  inputs:
+    azureSubscription: 'MyAzureSubscription'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      # Download azctl
+      curl -L https://dl.furiatona.dev/azctl/latest/azctl-linux-amd64 -o azctl
+      chmod +x azctl
+      
+      # Deploy (environment auto-detected)
+      ./azctl aci
 ```
 
 ## Development

@@ -47,8 +47,8 @@ jobs:
           port: ${{ secrets.CPANEL_PORT }}
           script: |
             cd /home/${{ secrets.CPANEL_USER }}/subdomains/dl.furiatona.dev
-            rm -rf azctl/$VERSION && mkdir -p azctl/$VERSION
-            mv temp/dist/azctl_* azctl/$VERSION/
+            rm -rf azctl/${{ VERSION }} && mkdir -p azctl/${{ VERSION }}
+            mv temp/dist/azctl_* azctl/${{ VERSION }}/
             rm -rf temp
       - name: Upload release assets
         uses: softprops/action-gh-release@v2

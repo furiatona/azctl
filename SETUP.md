@@ -12,26 +12,26 @@ This guide provides detailed setup instructions for azctl, a Go CLI tool for Azu
 
 ### Option 1: Download Pre-built Binary (Recommended)
 
-Download the latest binary from the releases:
+Download the latest binary from [dl.furiatona.dev](https://dl.furiatona.dev/azctl/):
 
 ```bash
 # Linux AMD64
-curl -L https://github.com/furiatona/azctl/releases/latest/download/azctl_linux_amd64 -o azctl
+curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl_linux_amd64 -o azctl
 chmod +x azctl
 sudo mv azctl /usr/local/bin/
 
 # macOS AMD64
-curl -L https://github.com/furiatona/azctl/releases/latest/download/azctl_darwin_amd64 -o azctl
+curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl_darwin_amd64 -o azctl
 chmod +x azctl
 sudo mv azctl /usr/local/bin/
 
 # macOS ARM64
-curl -L https://github.com/furiatona/azctl/releases/latest/download/azctl_darwin_arm64 -o azctl
+curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl_darwin_arm64 -o azctl
 chmod +x azctl
 sudo mv azctl /usr/local/bin/
 
 # Windows AMD64
-# Download azctl_windows_amd64.exe from https://github.com/furiatona/azctl/releases/latest/download/
+# Download azctl_windows_amd64.exe from https://dl.furiatona.dev/azctl/v0.2.0/
 ```
 
 ### Option 2: Build from Source

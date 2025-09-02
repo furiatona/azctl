@@ -26,18 +26,17 @@ jobs:
         with:
           go-version: '1.22.x'
       - name: Build binaries
-        run: |
-          make release
-      - name: Upload files
+        run: make release
+      - name: Upload to temp directory
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.CPANEL_HOST }}
           username: ${{ secrets.CPANEL_USER }}
           password: ${{ secrets.CPANEL_PASS }}
           port: ${{ secrets.CPANEL_PORT }}
-          source: "dist/"
-          target: "/home/${{ secrets.CPANEL_USER }}/subdomains/dl.furiatona.dev/azctl"
-      - name: Update latest symlink
+          source: "dist/*"
+          target: "/home/${{ secrets.CPANEL_USER }}/subdomains/dl.furiatona.dev/temp"
+      - name: Create version directory and move files
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.CPANEL_HOST }}
@@ -45,19 +44,15 @@ jobs:
           password: ${{ secrets.CPANEL_PASS }}
           port: ${{ secrets.CPANEL_PORT }}
           script: |
-            VERSION="${GITHUB_REF#refs/tags/}"
-            cd /home/${{ secrets.CPANEL_USER }}/subdomains/dl.furiatona.dev/azctl
-            mkdir -p "${VERSION}"
-            mv * "${VERSION}/" 2>/dev/null || true
-            ln -sfn "${VERSION}" latest
-            echo "✅ Files uploaded to dl.furiatona.dev/azctl/${VERSION}/"
-            echo "✅ Latest symlink updated to point to ${VERSION}"
+            VERSION=${{ github.ref_name }}
+            echo "VERSION=$VERSION"
+            cd /home/${{ secrets.CPANEL_USER }}/subdomains/dl.${{ secrets.CPANEL_USER }}.dev
+            rm -rf azctl/$VERSION && mkdir -p azctl/$VERSION
+            mv temp/dist/azctl_* azctl/$VERSION/
+            rm -rf temp
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
         with:
-          files: |
-            dist/*
-
-
+          files: dist/*

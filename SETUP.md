@@ -16,22 +16,22 @@ Download the latest binary from [dl.furiatona.dev](https://dl.furiatona.dev/azct
 
 ```bash
 # Linux AMD64
-curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl-linux-amd64 -o azctl
+curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl_linux_amd64 -o azctl
 chmod +x azctl
 sudo mv azctl /usr/local/bin/
 
 # macOS AMD64
-curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl-darwin-amd64 -o azctl
+curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl_darwin_amd64 -o azctl
 chmod +x azctl
 sudo mv azctl /usr/local/bin/
 
 # macOS ARM64
-curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl-darwin-arm64 -o azctl
+curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl_darwin_arm64 -o azctl
 chmod +x azctl
 sudo mv azctl /usr/local/bin/
 
 # Windows AMD64
-# Download azctl-windows-amd64.exe from https://dl.furiatona.dev/azctl/v0.2.0/
+# Download azctl_windows_amd64.exe from https://dl.furiatona.dev/azctl/v0.2.0/
 ```
 
 ### Option 2: Build from Source
@@ -42,6 +42,79 @@ cd azctl
 make build
 ./bin/azctl --help
 ```
+
+## Configuration
+
+### Precedence Order (highest to lowest)
+
+1. **CLI Flags** - Explicit command-line arguments
+2. **Environment Variables** - Shell environment and CI variables  
+3. **.env File** - Local development only (skipped when `CI=true`)
+4. **Azure App Configuration** - Centralized defaults (optional)
+
+### Environment Variable Naming
+
+#### Local Development (`.env` file)
+Use environment-specific prefixed variables for clarity:
+
+```bash
+# Development environment
+DEV_RESOURCE_GROUP=rg-myapp-dev
+DEV_APP_CONFIG=myapp-app-conf-dev
+DEV_WEBAPP_NAME=myapp-website-dev
+
+# Staging environment  
+STAGING_RESOURCE_GROUP=rg-myapp-staging
+STAGING_APP_CONFIG=myapp-app-conf
+STAGING_WEBAPP_NAME=myapp-website-staging
+
+# Production environment
+PROD_RESOURCE_GROUP=rg-myapp-prod
+PROD_APP_CONFIG=myapp-app-conf-prod
+PROD_WEBAPP_NAME=myapp-website-prod
+```
+
+#### CI Environments (GitHub Actions, Azure Pipelines)
+Use non-prefixed variables for cleaner configuration:
+
+```yaml
+# GitHub Actions workflow
+env:
+  RESOURCE_GROUP: rg-myapp-staging
+  APP_CONFIG: myapp-app-conf
+  WEBAPP_NAME: myapp-website-staging
+  ACI_SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+  ACI_FIREBASE_KEY: ${{ secrets.FIREBASE_KEY }}
+```
+
+The tool automatically:
+1. **Detects CI environment** (GitHub Actions, Azure Pipeline, GitLab CI, etc.)
+2. **Auto-detects environment** (dev/staging/prod) from branch name
+3. **Maps prefixed variables** to non-prefixed versions
+4. **Uses appropriate configuration** for the detected environment
+
+### Required Variables
+
+#### ACR Commands
+- `REGISTRY` - ACR registry name
+- `ACR_RESOURCE_GROUP` - Resource group containing ACR
+- `IMAGE_NAME` - Container image name  
+- `IMAGE_TAG` - Container image tag
+
+#### WebApp Deployment
+- `AZURE_RESOURCE_GROUP` - Target resource group
+- `REGISTRY` - ACR registry name
+- `IMAGE_NAME` - Container image name
+- `IMAGE_TAG` - Container image tag
+
+#### ACI Deployment
+- `AZURE_RESOURCE_GROUP` - Target resource group
+- `CONTAINER_GROUP_NAME` - ACI container group name
+- `IMAGE_REGISTRY` - ACR registry name
+- `IMAGE_NAME` - Container image name
+- `IMAGE_TAG` - Container image tag
+- `ACR_USERNAME` - Registry username
+- `ACR_PASSWORD` - Registry password
 
 ## Configuration Setup
 
@@ -247,6 +320,112 @@ jobs:
       - name: Download azctl
         run: |
           curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl-linux-amd64 -o azctl
+          chmod +x azctl
+      
+      - name: Deploy to ACR
+        env:
+          REGISTRY: ${{ secrets.REGISTRY }}
+          IMAGE_NAME: my-app
+          IMAGE_TAG: ${{ github.sha }}
+          ACR_RESOURCE_GROUP: ${{ secrets.ACR_RESOURCE_GROUP }}
+        run: ./azctl acr
+      
+      - name: Deploy to ACI
+        env:
+          AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
+          CONTAINER_GROUP_NAME: my-app-container
+          IMAGE_REGISTRY: ${{ secrets.REGISTRY }}
+          IMAGE_NAME: my-app
+          IMAGE_TAG: ${{ github.sha }}
+          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+        run: ./azctl aci
+```
+
+## CI/CD Integration
+
+Set environment variables in your CI system. The `.env` file is automatically skipped when `CI=true`.
+
+### GitHub Actions Example
+
+```yaml
+name: Deploy to Azure
+
+on:
+  push:
+    branches: [staging, main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      
+      - name: Download azctl
+        run: |
+          curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl_linux_amd64 -o azctl
+          chmod +x azctl
+      
+      - name: Deploy to ACI
+        env:
+          RESOURCE_GROUP: rg-myapp-${{ github.ref_name }}
+          APP_CONFIG: myapp-app-conf-${{ github.ref_name == 'main' && 'prod' || github.ref_name }}
+          ACI_SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          ./azctl aci  # Environment auto-detected!
+```
+
+### Azure Pipeline Example
+
+```yaml
+trigger:
+  branches:
+    include:
+    - staging
+    - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  RESOURCE_GROUP: 'rg-myapp-$(Build.SourceBranchName)'
+  APP_CONFIG: 'myapp-app-conf-$(Build.SourceBranchName)'
+
+steps:
+- task: AzureCLI@2
+  inputs:
+    azureSubscription: 'MyAzureSubscription'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      # Download azctl
+      curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl_linux_amd64 -o azctl
+      chmod +x azctl
+      
+      # Deploy (environment auto-detected)
+      ./azctl aci
+```
+
+### Basic CI/CD Example
+
+```yaml
+name: Deploy
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download azctl
+        run: |
+          curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl_linux_amd64 -o azctl
           chmod +x azctl
       
       - name: Deploy to ACR

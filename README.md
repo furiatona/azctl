@@ -9,6 +9,7 @@ A production-ready Go CLI tool that wraps Azure CLI commands for container deplo
 - **ACI Deployment**: Deploy containers with sidecar support using JSON templates  
 - **Config Management**: Multi-source configuration with proper precedence
 - **Environment Support**: Seamless local development and CI/CD integration
+- **CI Environment Detection**: Automatic environment detection and variable mapping
 - **Validation**: Clear error messages for missing configuration
 
 ## Installation
@@ -19,22 +20,22 @@ Download the latest binary from [dl.furiatona.dev](https://dl.furiatona.dev/azct
 
 ```bash
 # Linux AMD64
-curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl-linux-amd64 -o azctl
+curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl_linux_amd64 -o azctl
 chmod +x azctl
 sudo mv azctl /usr/local/bin/
 
 # macOS AMD64
-curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl-darwin-amd64 -o azctl
+curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl_darwin_amd64 -o azctl
 chmod +x azctl
 sudo mv azctl /usr/local/bin/
 
 # macOS ARM64
-curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl-darwin-arm64 -o azctl
+curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl_darwin_arm64 -o azctl
 chmod +x azctl
 sudo mv azctl /usr/local/bin/
 
 # Windows AMD64
-# Download azctl-windows-amd64.exe from https://dl.furiatona.dev/azctl/v0.2.0/
+# Download azctl_windows_amd64.exe from https://dl.furiatona.dev/azctl/v0.2.0/
 ```
 
 ### From Source
@@ -71,39 +72,7 @@ make build
 
 > **📖 Need more detailed setup instructions?** See [SETUP.md](SETUP.md) for comprehensive configuration and deployment guides.
 
-## Configuration
-
-### Precedence Order (highest to lowest)
-
-1. **CLI Flags** - Explicit command-line arguments
-2. **Environment Variables** - Shell environment and CI variables  
-3. **.env File** - Local development only (skipped when `CI=true`)
-4. **Azure App Configuration** - Centralized defaults (optional)
-
-### Required Variables
-
-#### ACR Commands
-- `REGISTRY` - ACR registry name
-- `ACR_RESOURCE_GROUP` - Resource group containing ACR
-- `IMAGE_NAME` - Container image name  
-- `IMAGE_TAG` - Container image tag
-
-#### WebApp Deployment
-- `AZURE_RESOURCE_GROUP` - Target resource group
-- `REGISTRY` - ACR registry name
-- `IMAGE_NAME` - Container image name
-- `IMAGE_TAG` - Container image tag
-
-#### ACI Deployment
-- `AZURE_RESOURCE_GROUP` - Target resource group
-- `CONTAINER_GROUP_NAME` - ACI container group name
-- `IMAGE_REGISTRY` - ACR registry name
-- `IMAGE_NAME` - Container image name
-- `IMAGE_TAG` - Container image tag
-- `ACR_USERNAME` - Registry username
-- `ACR_PASSWORD` - Registry password
-
-## Usage Examples
+## Basic Usage
 
 ### Build and Push to ACR
 
@@ -112,12 +81,15 @@ make build
 azctl acr
 
 # Using CLI flags
-azctl acr --registry myregistry --image myapp --tag v1.0.0 --resource-group my-rg
+azctl acr --registry myregistry --image myapp --tag v1.0.0
 
 # With environment-specific config
 azctl acr --env dev
 azctl acr --env staging
 azctl acr --env production
+
+# In CI - environment auto-detected from branch name
+azctl acr  # Auto-detects 'staging' from 'staging' branch
 ```
 
 ### Deploy to WebApp
@@ -128,6 +100,9 @@ azctl webapp --env staging --resource-group my-rg
 
 # Deploy with custom WebApp name
 azctl webapp --env production --name my-custom-webapp
+
+# In CI - environment auto-detected
+azctl webapp --resource-group my-rg  # Auto-detects environment
 ```
 
 ### Deploy to ACI
@@ -141,9 +116,26 @@ azctl aci --template ./my-aci-template.json --env production
 
 # Dry run - generate JSON without deploying
 azctl aci --dry-run --env staging --resource-group staging-rg
+
+# In CI - environment auto-detected
+azctl aci --resource-group my-rg  # Auto-detects environment
 ```
 
 ## Development
+
+```bash
+# Run tests
+make test
+
+# Build binary
+make build
+
+# Lint code
+make lint
+
+# Cross-platform release build
+make release
+```
 
 ```bash
 # Run tests

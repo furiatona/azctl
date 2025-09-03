@@ -16,9 +16,6 @@ builds:
     ldflags:
       - "-s -w -X main.version={{.Version}}"
 
-archives:
-  - name_template: "azctl_{{ .Os }}_{{ .Arch }}{{ if eq .Os \"windows\" }}.exe{{ end }}"
-
 release:
   github:
     owner: furiatona

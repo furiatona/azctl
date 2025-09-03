@@ -50,14 +50,32 @@ func Init(ctx context.Context, envfile string, env string) error {
 			name = os.Getenv("APP_CONFIG") // Fallback to APP_CONFIG
 		}
 		label := env // Use environment as label for Azure App Config
-		// Use IMAGE_NAME from .env if available, otherwise from OS env
-		imageName := envImageName
-		if imageName == "" {
-			imageName = os.Getenv("IMAGE_NAME")
+
+		// Determine service name for Azure App Config
+		// In CI: auto-detect from GITHUB_REPOSITORY
+		// In local: use IMAGE_NAME from .env or environment
+		serviceName := ""
+		if os.Getenv("CI") == "true" {
+			// Auto-detect service name from CI context
+			if os.Getenv("GITHUB_ACTIONS") == "true" {
+				if repoName := os.Getenv("GITHUB_REPOSITORY"); repoName != "" {
+					parts := strings.Split(repoName, "/")
+					if len(parts) == 2 {
+						serviceName = parts[1]
+					}
+				}
+			}
+		} else {
+			// Use IMAGE_NAME from .env if available, otherwise from OS env
+			serviceName = envImageName
+			if serviceName == "" {
+				serviceName = os.Getenv("IMAGE_NAME")
+			}
 		}
-		logx.Infof("[DEBUG] Using IMAGE_NAME for Azure App Config: '%s', environment: '%s', app config: '%s'", imageName, env, name)
+
+		logx.Infof("[DEBUG] Using service name for Azure App Config: '%s', environment: '%s', app config: '%s'", serviceName, env, name)
 		if name != "" {
-			if kvs, err := fetchAzureAppConfigWithImage(ctx, name, label, imageName); err != nil {
+			if kvs, err := fetchAzureAppConfigWithImage(ctx, name, label, serviceName); err != nil {
 				logx.Warnf("azure appconfig fetch failed: %v", err)
 			} else {
 				logx.Infof("[DEBUG] Loaded %d variables from Azure App Config", len(kvs))

@@ -69,4 +69,4 @@ runs:
           sudo mv "$FILENAME" /usr/local/bin/azctl
         fi
 
-        echo "✅ azctl installed: $(azctl --version || echo 'verify manually')"
+        echo "✅ azctl installed!"

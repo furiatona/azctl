@@ -143,6 +143,24 @@ func newACRCmd() *cobra.Command {
 			imageTag = cfg.Get("IMAGE_TAG")
 			fullImageName := fmt.Sprintf("%s.azurecr.io/%s:%s", registry, imageName, imageTag)
 
+			// Check if image already exists
+			logx.Printf("Checking if image already exists: %s", fullImageName)
+			checkArgs := []string{
+				"acr", "repository", "show-tags",
+				"--name", registry,
+				"--repository", imageName,
+				"--output", "tsv",
+			}
+			existingTags, err := runx.AZOutput(cmd.Context(), checkArgs...)
+			if err == nil {
+				// Check if the tag exists
+				if strings.Contains(existingTags, imageTag) {
+					logx.Printf("✅ Image already exists: %s", fullImageName)
+					logx.Printf("Skipping build for existing image")
+					return nil
+				}
+			}
+
 			logx.Printf("Building and pushing image: %s", fullImageName)
 
 			// Use az acr build command

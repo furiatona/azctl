@@ -17,14 +17,7 @@ builds:
       - "-s -w -X main.version={{.Version}}"
 
 archives:
-  - format: binary
-    name_template: "azctl_{{ .Os }}_{{ .Arch }}"
-    replacements:
-      darwin: darwin
-      linux: linux
-      windows: windows
-      amd64: amd64
-      arm64: arm64
+  - name_template: "azctl_{{ .Os }}_{{ .Arch }}{{ if eq .Os \"windows\" }}.exe{{ end }}"
 
 release:
   github:

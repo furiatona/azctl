@@ -1,10 +1,11 @@
 package logging
 
 import (
-	"github.com/furiatona/azctl/internal/config"
-	"github.com/furiatona/azctl/internal/templatex"
 	"fmt"
 	"os"
+
+	"github.com/furiatona/azctl/internal/config"
+	"github.com/furiatona/azctl/internal/templatex"
 )
 
 // DatadogProvider implements LoggingProvider for Datadog
@@ -27,17 +28,17 @@ func (p *DatadogProvider) GetInfoMessage() string {
 
 func (p *DatadogProvider) GenerateConfig(cfg *config.Config, imageName, envName string) (string, error) {
 	// This would read a different template for Datadog
-	templatePath := "azctl/deploy/configs/fluent-bit-datadog.conf"
+	templatePath := "deploy/configs/fluent-bit-datadog.conf"
 	templateBytes, err := os.ReadFile(templatePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to read Datadog Fluent-bit template: %w", err)
 	}
-	
+
 	// Render the template with configuration values
 	rendered, err := templatex.RenderEnv(string(templateBytes), cfg)
 	if err != nil {
 		return "", fmt.Errorf("failed to render Datadog Fluent-bit template: %w", err)
 	}
-	
+
 	return rendered, nil
 }

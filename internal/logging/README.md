@@ -41,7 +41,7 @@ func (p *NewRelicProvider) GetInfoMessage() string {
 }
 
 func (p *NewRelicProvider) GenerateConfig(cfg *config.Config, imageName, envName string) (string, error) {
-    templatePath := "azctl/deploy/configs/fluent-bit-newrelic.conf"
+    templatePath := "deploy/configs/fluent-bit-newrelic.conf"
     templateBytes, err := os.ReadFile(templatePath)
     if err != nil {
         return "", fmt.Errorf("failed to read New Relic Fluent-bit template: %w", err)
@@ -70,7 +70,7 @@ func NewManager() *Manager {
 }
 ```
 
-3. **Create the Fluent-bit template** (e.g., `azctl/deploy/configs/fluent-bit-newrelic.conf`):
+3. **Create the Fluent-bit template** (e.g., `deploy/configs/fluent-bit-newrelic.conf`):
 
 ```
 [SERVICE]

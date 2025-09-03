@@ -14,28 +14,35 @@ A production-ready Go CLI tool that wraps Azure CLI commands for container deplo
 
 ## Installation
 
-### From Release (Recommended)
+### From GitHub Release (Recommended)
 
-Download the latest binary from [dl.furiatona.dev](https://dl.furiatona.dev/azctl/):
+Download the latest binary from [GitHub Releases](https://github.com/furiatona/azctl/releases):
 
 ```bash
-# Linux AMD64
-curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl_linux_amd64 -o azctl
-chmod +x azctl
-sudo mv azctl /usr/local/bin/
+# Visit the latest release page and download the appropriate binary:
+# https://github.com/furiatona/azctl/releases/latest
+#
+# Example filenames:
+# - azctl_v1.1.0_linux_amd64
+# - azctl_v1.1.0_darwin_amd64  
+# - azctl_v1.1.0_darwin_arm64
+# - azctl_v1.1.0_windows_amd64.exe
 
-# macOS AMD64
-curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl_darwin_amd64 -o azctl
-chmod +x azctl
-sudo mv azctl /usr/local/bin/
+# After downloading, make executable and move to PATH:
+chmod +x azctl_v1.1.0_darwin_arm64  # adjust filename as needed
+sudo mv azctl_v1.1.0_darwin_arm64 /usr/local/bin/azctl
+```
 
-# macOS ARM64
-curl -L https://dl.furiatona.dev/azctl/v0.2.0/azctl_darwin_arm64 -o azctl
-chmod +x azctl
-sudo mv azctl /usr/local/bin/
+### In GitHub Workflows
 
-# Windows AMD64
-# Download azctl_windows_amd64.exe from https://dl.furiatona.dev/azctl/v0.2.0/
+Use azctl directly in your GitHub Actions workflows:
+
+```yaml
+- name: Use azctl
+  uses: furiatona/azctl@v1
+
+- name: Build and push to ACR
+  run: azctl acr --env production
 ```
 
 ### From Source

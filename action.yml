@@ -42,14 +42,22 @@ runs:
 
         echo "⬇️ Installing azctl $VERSION for $OS/$ARCH"
 
-        FILENAME="azctl_${OS}_${ARCH}"
+        FILENAME="azctl_${VERSION}_${OS}_${ARCH}"
         if [ "$OS" = "windows" ]; then
           FILENAME="${FILENAME}.exe"
         fi
 
         curl -sSL \
           "https://github.com/furiatona/azctl/releases/download/$VERSION/$FILENAME" \
-          -o "$FILENAME"
+          -o "$FILENAME" || {
+          echo "❌ Failed to download azctl $VERSION"
+          echo "🔗 URL: https://github.com/furiatona/azctl/releases/download/$VERSION/$FILENAME"
+          exit 1
+        }
+
+        echo "📁 Downloaded file: $FILENAME"
+        echo "📏 File size: $(ls -la "$FILENAME")"
+        echo "🔍 File type: $(file "$FILENAME" || echo 'file command not available')"
 
         if [ "$OS" = "windows" ]; then
           mkdir -p "$HOME/.azctl/bin"

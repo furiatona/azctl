@@ -1,0 +1,63 @@
+name: "azctl Installer"
+description: "Install azctl CLI from GitHub Releases"
+author: "furiatona"
+
+inputs:
+  version:
+    description: "azctl version to install (default: tag in 'uses:')"
+    required: false
+    default: ${{ github.action_ref }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Detect runner OS and architecture
+      id: sysinfo
+      shell: bash
+      run: |
+        OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+        ARCH=$(uname -m)
+
+        case "$OS" in
+          linux*)   OS=linux ;;
+          darwin*)  OS=darwin ;;
+          msys*|cygwin*|mingw*|windows*) OS=windows ;;
+        esac
+
+        case "$ARCH" in
+          x86_64|amd64) ARCH=amd64 ;;
+          arm64|aarch64) ARCH=arm64 ;;
+          *) echo "❌ Unsupported arch: $ARCH"; exit 1 ;;
+        esac
+
+        echo "os=$OS"   >> $GITHUB_OUTPUT
+        echo "arch=$ARCH" >> $GITHUB_OUTPUT
+
+    - name: Download azctl
+      shell: bash
+      run: |
+        VERSION="${{ inputs.version }}"
+        OS="${{ steps.sysinfo.outputs.os }}"
+        ARCH="${{ steps.sysinfo.outputs.arch }}"
+
+        echo "⬇️ Installing azctl $VERSION for $OS/$ARCH"
+
+        FILENAME="azctl_${OS}_${ARCH}"
+        if [ "$OS" = "windows" ]; then
+          FILENAME="${FILENAME}.exe"
+        fi
+
+        curl -sSL \
+          "https://github.com/furiatona/azctl/releases/download/$VERSION/$FILENAME" \
+          -o "$FILENAME"
+
+        if [ "$OS" = "windows" ]; then
+          mkdir -p "$HOME/.azctl/bin"
+          mv "$FILENAME" "$HOME/.azctl/bin/azctl.exe"
+          echo "$HOME/.azctl/bin" >> $GITHUB_PATH
+        else
+          chmod +x "$FILENAME"
+          sudo mv "$FILENAME" /usr/local/bin/azctl
+        fi
+
+        echo "✅ azctl installed: $(azctl --version || echo 'verify manually')"

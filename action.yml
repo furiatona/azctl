@@ -43,16 +43,17 @@ runs:
 
         echo "⬇️ Installing azctl $VERSION for $OS/$ARCH"
 
+        # Try full version first (e.g. 1.1.0)
         FILENAME="azctl_${VERSION_NUM}_${OS}_${ARCH}"
         if [ "$OS" = "windows" ]; then
           FILENAME="${FILENAME}.exe"
         fi
 
-        curl -sSL \
-          "https://github.com/furiatona/azctl/releases/download/$VERSION/$FILENAME" \
-          -o "$FILENAME" || {
-          echo "❌ Failed to download azctl $VERSION"
-          echo "🔗 URL: https://github.com/furiatona/azctl/releases/download/$VERSION/$FILENAME"
+        URL="https://github.com/furiatona/azctl/releases/download/$VERSION/$FILENAME"
+
+        echo "🔗 Downloading: $URL"
+        curl -sSL "$URL" -o "$FILENAME" || {
+          echo "❌ Failed to download $URL"
           exit 1
         }
 

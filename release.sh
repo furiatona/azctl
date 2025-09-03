@@ -24,20 +24,22 @@ log_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
 log_error()   { echo -e "${RED}[ERROR]${NC} $1"; }
 
 show_help() {
-  echo "Usage: $0 <version> [major_tag] [--with-release]"
-  echo
-  echo "Arguments:"
-  echo "  version       Semantic version (e.g. v1.1.0)"
-  echo "  major_tag     Optional major tag alias (e.g. v1)"
-  echo
-  echo "Options:"
-  echo "  --with-release  Also delete GitHub release objects before retagging (requires gh CLI)"
-  echo "  --help          Show this help message"
-  echo
-  echo "Examples:"
-  echo "  $0 v1.1.0"
-  echo "  $0 v1.1.0 v1"
-  echo "  $0 v1.1.0 v1 --with-release"
+  cat <<EOF
+Usage: $0 <version> [major_tag] [--with-release]
+
+Arguments:
+  version       Semantic version (e.g. v1.1.0)
+  major_tag     Optional major tag alias (e.g. v1)
+
+Options:
+  --with-release  Also delete GitHub release objects before retagging (requires gh CLI)
+  --help          Show this help message
+
+Examples:
+  $0 v1.1.0
+  $0 v1.1.0 v1
+  $0 v1.1.0 v1 --with-release
+EOF
 }
 
 # Parse args
@@ -67,7 +69,13 @@ if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   exit 1
 fi
 
-log_info "Starting release process for version: $VERSION (major tag: ${MAJOR_TAG:-none})"
+# Default major_tag if not provided
+if [ -z "$MAJOR_TAG" ]; then
+  MAJOR=$(echo "$VERSION" | cut -d. -f1) # e.g. v1 from v1.2.3
+  MAJOR_TAG="$MAJOR"
+fi
+
+log_info "Starting release process for version: $VERSION (major tag: $MAJOR_TAG)"
 
 # Ensure git repo
 if ! git rev-parse --git-dir > /dev/null 2>&1; then
@@ -108,17 +116,17 @@ delete_release() {
 # Clean up existing tags/releases
 delete_tag "$VERSION"
 delete_release "$VERSION"
-[ -n "$MAJOR_TAG" ] && delete_tag "$MAJOR_TAG" && delete_release "$MAJOR_TAG"
+delete_tag "$MAJOR_TAG"
+delete_release "$MAJOR_TAG"
 
-# Create & push tags
+# Create & push new version tag
 log_info "Creating new tag: $VERSION"
 git tag "$VERSION"
 git push origin "$VERSION"
 
-if [ -n "$MAJOR_TAG" ]; then
-  log_info "Creating/Updating major tag: $MAJOR_TAG"
-  git tag -f "$MAJOR_TAG"
-  git push origin "$MAJOR_TAG" --force
-fi
+# Always update major tag alias
+log_info "Creating/Updating major tag: $MAJOR_TAG -> $VERSION"
+git tag -f "$MAJOR_TAG" "$VERSION"
+git push origin "$MAJOR_TAG" --force
 
-log_success "Release process complete for $VERSION"
+log_success "Release process complete for $VERSION (major tag: $MAJOR_TAG)"

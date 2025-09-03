@@ -16,6 +16,9 @@ builds:
     ldflags:
       - "-s -w -X main.version={{.Version}}"
 
+archives:
+  - formats: [ 'binary' ]
+
 release:
   github:
     owner: furiatona

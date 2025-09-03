@@ -148,7 +148,7 @@ func newACICmd() *cobra.Command {
 			// Generate Fluent-bit configuration for logging integration
 			loggingManager := logging.NewManager()
 			if err := loggingManager.GenerateConfig(cfg, cfg.Get("IMAGE_NAME"), envName); err != nil {
-				logx.Warnf("Failed to generate logging config: %v", err)
+				return fmt.Errorf("failed to generate logging config: %w", err)
 			}
 
 			if dryRun {

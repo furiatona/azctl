@@ -1,0 +1,25 @@
+version: 2
+
+project_name: azctl
+
+builds:
+  - id: azctl
+    main: ./cmd/azctl
+    binary: azctl
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - "-s -w -X main.version={{.Version}}"
+
+archives:
+  - formats: [ 'binary' ]
+
+release:
+  github:
+    owner: furiatona
+    name: azctl

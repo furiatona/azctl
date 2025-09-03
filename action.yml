@@ -1,0 +1,95 @@
+name: "azctl Installer"
+description: "Install azctl CLI from GitHub Releases"
+author: "furiatona"
+
+inputs:
+  version:
+    description: "azctl version to install (default: tag in 'uses:')"
+    required: false
+    default: ${{ github.action_ref }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Detect runner OS and architecture
+      id: sysinfo
+      shell: bash
+      run: |
+        OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+        ARCH=$(uname -m)
+
+        case "$OS" in
+          linux*)   OS=linux ;;
+          darwin*)  OS=darwin ;;
+          msys*|cygwin*|mingw*|windows*) OS=windows ;;
+        esac
+
+        case "$ARCH" in
+          x86_64|amd64) ARCH=amd64 ;;
+          arm64|aarch64) ARCH=arm64 ;;
+          *) echo "❌ Unsupported arch: $ARCH"; exit 1 ;;
+        esac
+
+        echo "os=$OS"   >> $GITHUB_OUTPUT
+        echo "arch=$ARCH" >> $GITHUB_OUTPUT
+
+    - name: Resolve version
+      id: resolve
+      shell: bash
+      run: |
+        VERSION="${{ inputs.version }}"
+        echo "Requested version: $VERSION"
+
+        # If it's a major-only tag (v1, v0.2, etc.), resolve to latest semver
+        if [[ "$VERSION" =~ ^v[0-9]+(\.[0-9]+)?$ ]]; then
+          echo "Resolving moving tag $VERSION to latest release..."
+          VERSION=$(git ls-remote --tags https://github.com/furiatona/azctl.git \
+            | grep "refs/tags/${VERSION}\." \
+            | sed -E 's/.*refs\/tags\///' \
+            | sort -V | tail -n1)
+          if [ -z "$VERSION" ]; then
+            echo "❌ Could not resolve $VERSION to a concrete release"
+            exit 1
+          fi
+          echo "Resolved version: $VERSION"
+        fi
+
+        echo "resolved=$VERSION" >> $GITHUB_OUTPUT
+
+    - name: Download azctl
+      shell: bash
+      run: |
+        VERSION="${{ steps.resolve.outputs.resolved || inputs.version }}"
+        VERSION_NUM="${VERSION#v}"   # strip leading 'v'
+        OS="${{ steps.sysinfo.outputs.os }}"
+        ARCH="${{ steps.sysinfo.outputs.arch }}"
+
+        echo "⬇️ Installing azctl $VERSION for $OS/$ARCH"
+
+        FILENAME="azctl_${VERSION_NUM}_${OS}_${ARCH}"
+        if [ "$OS" = "windows" ]; then
+          FILENAME="${FILENAME}.exe"
+        fi
+
+        URL="https://github.com/furiatona/azctl/releases/download/$VERSION/$FILENAME"
+
+        echo "🔗 Downloading: $URL"
+        curl -sSL "$URL" -o "$FILENAME" || {
+          echo "❌ Failed to download $URL"
+          exit 1
+        }
+
+        echo "📁 Downloaded file: $FILENAME"
+        echo "📏 File size: $(ls -la "$FILENAME")"
+        echo "🔍 File type: $(file "$FILENAME" || echo 'file command not available')"
+
+        if [ "$OS" = "windows" ]; then
+          mkdir -p "$HOME/.azctl/bin"
+          mv "$FILENAME" "$HOME/.azctl/bin/azctl.exe"
+          echo "$HOME/.azctl/bin" >> $GITHUB_PATH
+        else
+          chmod +x "$FILENAME"
+          sudo mv "$FILENAME" /usr/local/bin/azctl
+        fi
+
+        echo "✅ azctl installed!"

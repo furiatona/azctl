@@ -1,10 +1,11 @@
 package logging
 
 import (
-	"github.com/furiatona/azctl/internal/config"
-	"github.com/furiatona/azctl/internal/templatex"
 	"fmt"
 	"os"
+
+	"github.com/furiatona/azctl/internal/config"
+	"github.com/furiatona/azctl/internal/templatex"
 )
 
 // LogflareProvider implements LoggingProvider for Logflare
@@ -26,7 +27,7 @@ func (p *LogflareProvider) GetInfoMessage() string {
 
 func (p *LogflareProvider) GenerateConfig(cfg *config.Config, imageName, envName string) (string, error) {
 	// Read the Fluent-bit template
-	templatePath := "../azctl/deploy/configs/fluent-bit.conf"
+	templatePath := "deploy/configs/fluent-bit.conf"
 	templateBytes, err := os.ReadFile(templatePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to read Fluent-bit template: %w", err)

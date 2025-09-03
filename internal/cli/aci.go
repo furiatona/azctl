@@ -55,6 +55,36 @@ func newACICmd() *cobra.Command {
 				logx.Infof("[DEBUG] Set ENV_NAME='%s' for Fluent-bit config", envName)
 			}
 
+			// Auto-detect IMAGE_NAME, IMAGE_TAG, CONTAINER_GROUP_NAME, and DNS_NAME_LABEL in CI if not set
+			if isCIEnvironment() {
+				if cfg.Get("IMAGE_NAME") == "" {
+					if detectedImageName := detectImageNameFromCI(); detectedImageName != "" {
+						cfg.Set("IMAGE_NAME", detectedImageName)
+						logx.Infof("[DEBUG] Auto-detected IMAGE_NAME from CI: %s", detectedImageName)
+					}
+				}
+				if cfg.Get("IMAGE_TAG") == "" {
+					if detectedImageTag := detectImageTagFromCI(); detectedImageTag != "" {
+						cfg.Set("IMAGE_TAG", detectedImageTag)
+						logx.Infof("[DEBUG] Auto-detected IMAGE_TAG from CI: %s", detectedImageTag)
+					}
+				}
+				if cfg.Get("CONTAINER_GROUP_NAME") == "" {
+					if detectedImageName := detectImageNameFromCI(); detectedImageName != "" {
+						cfg.Set("CONTAINER_GROUP_NAME", detectedImageName)
+						logx.Infof("[DEBUG] Auto-detected CONTAINER_GROUP_NAME from CI: %s", detectedImageName)
+					}
+				}
+				if cfg.Get("DNS_NAME_LABEL") == "" {
+					containerName := cfg.Get("CONTAINER_GROUP_NAME")
+					if containerName != "" && envName != "" {
+						dnsNameLabel := fmt.Sprintf("%s-%s", containerName, envName)
+						cfg.Set("DNS_NAME_LABEL", dnsNameLabel)
+						logx.Infof("[DEBUG] Auto-detected DNS_NAME_LABEL from CI: %s", dnsNameLabel)
+					}
+				}
+			}
+
 			if templatePath == "" {
 				templatePath = "deploy/manifests/aci.json"
 			}
@@ -91,12 +121,6 @@ func newACICmd() *cobra.Command {
 				}
 			}
 
-			// Set environment name for Fluent-bit configuration
-			if envName != "" {
-				cfg.Set("ENV_NAME", envName)
-				logx.Infof("[DEBUG] Set ENV_NAME='%s' for Fluent-bit config", envName)
-			}
-
 			// Set environment-based defaults if not provided
 			applyACIDefaults(cfg, envName)
 
@@ -124,7 +148,7 @@ func newACICmd() *cobra.Command {
 			// Generate Fluent-bit configuration for logging integration
 			loggingManager := logging.NewManager()
 			if err := loggingManager.GenerateConfig(cfg, cfg.Get("IMAGE_NAME"), envName); err != nil {
-				logx.Warnf("Failed to generate logging config: %v", err)
+				return fmt.Errorf("failed to generate logging config: %w", err)
 			}
 
 			if dryRun {

@@ -1,96 +1,132 @@
 #!/bin/bash
 
 # Release script for azctl
-# Usage: ./release.sh v0.2.0
+# Usage:
+#   ./release.sh <version> [major_tag] [--with-release]
+# Examples:
+#   ./release.sh v1.1.0
+#   ./release.sh v1.1.0 v1
+#   ./release.sh v1.1.0 v1 --with-release
 
 set -euo pipefail
 
-# Color codes for output
+# Color codes
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Function to print colored output
-log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
+# Log helpers
+log_info()    { echo -e "${BLUE}[INFO]${NC} $1"; }
 log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 log_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
-log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+log_error()   { echo -e "${RED}[ERROR]${NC} $1"; }
 
-# Check if version argument is provided
-if [ $# -eq 0 ]; then
-    log_error "Version argument is required"
-    echo "Usage: $0 <version>"
-    echo "Example: $0 v0.2.0"
-    exit 1
+show_help() {
+  cat <<EOF
+Usage: $0 <version> [major_tag] [--with-release]
+
+Arguments:
+  version       Semantic version (e.g. v1.1.0)
+  major_tag     Optional major tag alias (e.g. v1)
+
+Options:
+  --with-release  Also delete GitHub release objects before retagging (requires gh CLI)
+  --help          Show this help message
+
+Examples:
+  $0 v1.1.0
+  $0 v1.1.0 v1
+  $0 v1.1.0 v1 --with-release
+EOF
+}
+
+# Parse args
+WITH_RELEASE=false
+VERSION=""
+MAJOR_TAG=""
+
+for arg in "$@"; do
+  case "$arg" in
+    --with-release) WITH_RELEASE=true ;;
+    --help) show_help; exit 0 ;;
+    v[0-9]*.[0-9]*.[0-9]*) VERSION="$arg" ;;
+    v[0-9]*) MAJOR_TAG="$arg" ;;
+    *) log_error "Unknown argument: $arg"; show_help; exit 1 ;;
+  esac
+done
+
+if [ -z "$VERSION" ]; then
+  log_error "Version argument is required"
+  show_help
+  exit 1
 fi
 
-VERSION="$1"
-
-# Validate version format (should start with 'v' followed by semantic version)
-if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
-    log_error "Invalid version format. Expected format: vX.Y.Z"
-    echo "Example: v0.2.0"
-    exit 1
+# Validate version format
+if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  log_error "Invalid version format. Expected: vX.Y.Z"
+  exit 1
 fi
 
-log_info "Starting release process for version: $VERSION"
+# Default major_tag if not provided
+if [ -z "$MAJOR_TAG" ]; then
+  MAJOR=$(echo "$VERSION" | cut -d. -f1) # e.g. v1 from v1.2.3
+  MAJOR_TAG="$MAJOR"
+fi
 
-# Check if we're in a git repository
+log_info "Starting release process for version: $VERSION (major tag: $MAJOR_TAG)"
+
+# Ensure git repo
 if ! git rev-parse --git-dir > /dev/null 2>&1; then
-    log_error "Not in a git repository"
-    exit 1
+  log_error "Not in a git repository"
+  exit 1
 fi
 
-# Check if we have uncommitted changes
+# Warn if dirty
 if ! git diff-index --quiet HEAD --; then
-    log_warning "You have uncommitted changes. Please commit or stash them before releasing."
-    echo "Uncommitted files:"
-    git status --porcelain
-    echo ""
-    read -p "Continue anyway? (y/N): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        log_info "Release cancelled"
-        exit 1
-    fi
+  log_warning "Uncommitted changes found"
+  read -p "Continue anyway? (y/N): " -n 1 -r
+  echo
+  [[ ! $REPLY =~ ^[Yy]$ ]] && exit 1
 fi
 
-# Check if tag exists locally
-if git tag -l "$VERSION" | grep -q "$VERSION"; then
-    log_warning "Tag $VERSION exists locally. Removing..."
-    git tag -d "$VERSION"
-    log_success "Local tag $VERSION removed"
-else
-    log_info "Tag $VERSION does not exist locally"
-fi
+# Function: delete tag locally & remotely
+delete_tag() {
+  local TAG=$1
+  if git tag -l "$TAG" | grep -q "$TAG"; then
+    log_warning "Tag $TAG exists locally. Removing..."
+    git tag -d "$TAG"
+  fi
+  if git ls-remote --tags origin | grep -q "refs/tags/$TAG"; then
+    log_warning "Tag $TAG exists remotely. Removing..."
+    git push origin ":refs/tags/$TAG"
+  fi
+}
 
-# Check if tag exists remotely
-if git ls-remote --tags origin | grep -q "refs/tags/$VERSION"; then
-    log_warning "Tag $VERSION exists remotely. Removing..."
-    git push origin ":refs/tags/$VERSION"
-    log_success "Remote tag $VERSION removed"
-else
-    log_info "Tag $VERSION does not exist remotely"
-fi
+# Function: delete GitHub release
+delete_release() {
+  local TAG=$1
+  if $WITH_RELEASE && command -v gh >/dev/null 2>&1; then
+    log_info "Deleting GitHub release for $TAG..."
+    gh release delete "$TAG" -y || true
+  fi
+}
 
-# Create new tag
+# Clean up existing tags/releases
+delete_tag "$VERSION"
+delete_release "$VERSION"
+delete_tag "$MAJOR_TAG"
+delete_release "$MAJOR_TAG"
+
+# Create & push new version tag
 log_info "Creating new tag: $VERSION"
 git tag "$VERSION"
-
-# Push the new tag
-log_info "Pushing tag to remote..."
 git push origin "$VERSION"
 
-log_success "Release tag $VERSION created and pushed successfully!"
+# Always update major tag alias
+log_info "Creating/Updating major tag: $MAJOR_TAG -> $VERSION"
+git tag -f "$MAJOR_TAG" "$VERSION"
+git push origin "$MAJOR_TAG" --force
 
-# Show the new tag
-log_info "New tag details:"
-git show "$VERSION" --no-patch
-
-echo ""
-log_info "Next steps:"
-echo "1. Create a GitHub release at: https://github.com/furiatona/azctl/releases/new"
-echo "2. Upload the built binaries for this release"
-echo "3. Update the download links in documentation"
+log_success "Release process complete for $VERSION (major tag: $MAJOR_TAG)"

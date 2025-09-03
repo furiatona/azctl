@@ -37,12 +37,13 @@ runs:
       shell: bash
       run: |
         VERSION="${{ inputs.version }}"
+        VERSION_NUM="${VERSION#v}"   # strip leading 'v'
         OS="${{ steps.sysinfo.outputs.os }}"
         ARCH="${{ steps.sysinfo.outputs.arch }}"
 
         echo "⬇️ Installing azctl $VERSION for $OS/$ARCH"
 
-        FILENAME="azctl_${VERSION}_${OS}_${ARCH}"
+        FILENAME="azctl_${VERSION_NUM}_${OS}_${ARCH}"
         if [ "$OS" = "windows" ]; then
           FILENAME="${FILENAME}.exe"
         fi

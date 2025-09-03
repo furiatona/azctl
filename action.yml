@@ -33,17 +33,39 @@ runs:
         echo "os=$OS"   >> $GITHUB_OUTPUT
         echo "arch=$ARCH" >> $GITHUB_OUTPUT
 
-    - name: Download azctl
+    - name: Resolve version
+      id: resolve
       shell: bash
       run: |
         VERSION="${{ inputs.version }}"
+        echo "Requested version: $VERSION"
+
+        # If it's a major-only tag (v1, v0.2, etc.), resolve to latest semver
+        if [[ "$VERSION" =~ ^v[0-9]+(\.[0-9]+)?$ ]]; then
+          echo "Resolving moving tag $VERSION to latest release..."
+          VERSION=$(git ls-remote --tags https://github.com/furiatona/azctl.git \
+            | grep "refs/tags/${VERSION}\." \
+            | sed -E 's/.*refs\/tags\///' \
+            | sort -V | tail -n1)
+          if [ -z "$VERSION" ]; then
+            echo "❌ Could not resolve $VERSION to a concrete release"
+            exit 1
+          fi
+          echo "Resolved version: $VERSION"
+        fi
+
+        echo "resolved=$VERSION" >> $GITHUB_OUTPUT
+
+    - name: Download azctl
+      shell: bash
+      run: |
+        VERSION="${{ steps.resolve.outputs.resolved || inputs.version }}"
         VERSION_NUM="${VERSION#v}"   # strip leading 'v'
         OS="${{ steps.sysinfo.outputs.os }}"
         ARCH="${{ steps.sysinfo.outputs.arch }}"
 
         echo "⬇️ Installing azctl $VERSION for $OS/$ARCH"
 
-        # Try full version first (e.g. 1.1.0)
         FILENAME="azctl_${VERSION_NUM}_${OS}_${ARCH}"
         if [ "$OS" = "windows" ]; then
           FILENAME="${FILENAME}.exe"

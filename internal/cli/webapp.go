@@ -142,7 +142,10 @@ func createWebApp(ctx context.Context, resourceGroup, webAppName, appServicePlan
 		"--plan", appServicePlan,
 		"--name", webAppName,
 	}
-	return fmt.Errorf("failed to check webapp existence: %w", runx.AZ(ctx, args...))
+	if err := runx.AZ(ctx, args...); err != nil {
+		return fmt.Errorf("failed to create webapp: %w", err)
+	}
+	return nil
 }
 
 // updateWebApp updates an existing WebApp with container configuration
@@ -165,5 +168,8 @@ func updateWebApp(ctx context.Context, resourceGroup, webAppName string, cfg *co
 		"--container-image-name", fullImageName,
 		"--container-registry-url", registryUrl,
 	}
-	return fmt.Errorf("failed to create webapp: %w", runx.AZ(ctx, args...))
+	if err := runx.AZ(ctx, args...); err != nil {
+		return fmt.Errorf("failed to update webapp: %w", err)
+	}
+	return nil
 }

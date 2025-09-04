@@ -12,7 +12,10 @@ func AZ(ctx context.Context, args ...string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
-	return fmt.Errorf("az command failed: %w", cmd.Run())
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("az command failed: %w", err)
+	}
+	return nil
 }
 
 // AZOutput runs az command and returns the output as a string

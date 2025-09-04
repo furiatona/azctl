@@ -291,7 +291,10 @@ func deleteContainerGroup(ctx context.Context, resourceGroup, containerGroupName
 		"--yes", // Skip confirmation
 	}
 
-	return fmt.Errorf("failed to delete container group: %w", runx.AZ(ctx, args...))
+	if err := runx.AZ(ctx, args...); err != nil {
+		return fmt.Errorf("failed to delete container group: %w", err)
+	}
+	return nil
 }
 
 // createContainerGroup creates a new container group from JSON
@@ -313,6 +316,8 @@ func createContainerGroup(ctx context.Context, resourceGroup, rendered string) e
 		return fmt.Errorf("failed to close temp file: %w", err)
 	}
 
-	return fmt.Errorf("failed to create container group: %w",
-		runx.AZ(ctx, "container", "create", "--resource-group", resourceGroup, "--file", f.Name()))
+	if err := runx.AZ(ctx, "container", "create", "--resource-group", resourceGroup, "--file", f.Name()); err != nil {
+		return fmt.Errorf("failed to create container group: %w", err)
+	}
+	return nil
 }

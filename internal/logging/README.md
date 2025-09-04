@@ -6,9 +6,36 @@ This directory contains a modular logging system that allows easy integration wi
 
 The logging system uses a provider-based architecture:
 
-- `manager.go` - Main manager that handles different logging providers
+- `manager.go` - Main manager that handles different logging providers and Azure File Storage upload
 - `logflare.go` - Logflare provider implementation
 - `datadog.go` - Example Datadog provider implementation
+
+## How It Works
+
+1. **Configuration Generation**: The system generates Fluent-bit configuration files based on the enabled logging provider
+2. **Local Storage**: Configuration files are saved locally in `fluent-bit/etc/{imageName}.conf`
+3. **Azure File Storage Upload**: Configuration files are automatically uploaded to Azure File Storage
+4. **ACI Container Mount**: The ACI container mounts the Azure File Storage share at `/fluent-bit/etc`
+
+## Required Azure Storage Configuration
+
+To enable automatic upload to Azure File Storage, configure these environment variables:
+
+```bash
+# Azure Storage Account for logging
+LOG_STORAGE_ACCOUNT=your-storage-account
+LOG_STORAGE_KEY=your-storage-account-key
+
+# Azure File Storage share for Fluent-bit configuration
+FLUENTBIT_CONFIG=fluentbit-config-{environment}
+```
+
+## Azure File Storage Setup
+
+The system will automatically:
+1. Create the Azure File Storage share if it doesn't exist
+2. Upload the generated configuration file to the share
+3. Make the configuration available to the ACI container
 
 ## How to Add a New Logging Provider
 

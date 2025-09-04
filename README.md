@@ -156,6 +156,36 @@ azctl aci --dry-run --env staging --resource-group staging-rg
 azctl aci --resource-group my-rg  # Auto-detects environment
 ```
 
+## 📊 Logging Integration
+
+### Fluent-bit with Azure File Storage
+
+azctl includes a modular logging system that automatically configures Fluent-bit for your ACI deployments:
+
+```bash
+# Configure Azure Storage for logging
+export LOG_STORAGE_ACCOUNT=your-storage-account
+export LOG_STORAGE_KEY=your-storage-key
+export FLUENTBIT_CONFIG=fluentbit-config-dev
+
+# Deploy with automatic logging setup
+azctl aci --env dev
+```
+
+**Features:**
+- ✅ **Automatic Configuration**: Generates Fluent-bit configs based on enabled providers
+- ✅ **Azure File Storage Upload**: Automatically uploads configs to Azure File Storage
+- ✅ **Container Mounting**: ACI containers mount configs at `/fluent-bit/etc`
+- ✅ **Multi-Provider Support**: Logflare, Datadog, New Relic, and custom providers
+- ✅ **Environment-Specific**: Different configs for dev/staging/prod environments
+
+**Supported Logging Providers:**
+- **Logflare**: Set `LOGFLARE_API_KEY` and `LOGFLARE_SOURCE_ID`
+- **Datadog**: Set `DATADOG_API_KEY` and `DATADOG_SITE`
+- **New Relic**: Set `NEWRELIC_API_KEY` and `NEWRELIC_ACCOUNT_ID`
+
+> **📖 For detailed logging setup:** See [internal/logging/README.md](internal/logging/README.md)
+
 ## 🛠️ Development
 
 ### Prerequisites

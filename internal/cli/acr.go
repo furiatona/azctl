@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/furiatona/azctl/internal/config"
-	"github.com/furiatona/azctl/internal/logx"
+	"github.com/furiatona/azctl/internal/logging"
 	"github.com/furiatona/azctl/internal/runx"
 
 	"github.com/spf13/cobra"
@@ -22,7 +22,7 @@ func findACRResourceGroup(ctx context.Context, registryName string) string {
 	args := []string{"group", "list", "--query", "[].name", "-o", "tsv"}
 	output, err := runx.AZOutput(ctx, args...)
 	if err != nil {
-		logx.Warnf("Failed to list resource groups: %v", err)
+		logging.Warnf("Failed to list resource groups: %v", err)
 		return ""
 	}
 
@@ -49,7 +49,7 @@ func collectBuildArgs(cfg *config.Config) []string {
 	for key, value := range cfg.GetAll() {
 		if strings.HasPrefix(key, "NEXT_PUBLIC_") {
 			buildArgs = append(buildArgs, "--build-arg", fmt.Sprintf("%s=%s", key, value))
-			logx.Infof("[DEBUG] Adding build arg: %s='%s'", key, value)
+			logging.Debugf("Adding build arg: %s='%s'", key, value)
 		}
 	}
 	return buildArgs
@@ -79,7 +79,7 @@ func newACRCmd() *cobra.Command {
 				detectedEnv := detectEnvironmentFromCI()
 				if detectedEnv != "" {
 					envName = detectedEnv
-					logx.Infof("[DEBUG] Auto-detected environment in CI: %s", envName)
+					logging.Debugf("Auto-detected environment in CI: %s", envName)
 				}
 			}
 
@@ -102,13 +102,13 @@ func newACRCmd() *cobra.Command {
 				if cfg.Get("IMAGE_NAME") == "" {
 					if detectedImageName := detectImageNameFromCI(); detectedImageName != "" {
 						cfg.Set("IMAGE_NAME", detectedImageName)
-						logx.Infof("[DEBUG] Auto-detected IMAGE_NAME from CI: %s", detectedImageName)
+						logging.Debugf("Auto-detected IMAGE_NAME from CI: %s", detectedImageName)
 					}
 				}
 				if cfg.Get("IMAGE_TAG") == "" {
 					if detectedImageTag := detectImageTagFromCI(); detectedImageTag != "" {
 						cfg.Set("IMAGE_TAG", detectedImageTag)
-						logx.Infof("[DEBUG] Auto-detected IMAGE_TAG from CI: %s", detectedImageTag)
+						logging.Debugf("Auto-detected IMAGE_TAG from CI: %s", detectedImageTag)
 					}
 				}
 			}
@@ -135,7 +135,7 @@ func newACRCmd() *cobra.Command {
 				if acrResourceGroup == "" {
 					return fmt.Errorf("ACR resource group not found for registry: %s", registry)
 				}
-				logx.Infof("Found ACR in resource group: %s", acrResourceGroup)
+				logging.Infof("Found ACR in resource group: %s", acrResourceGroup)
 			}
 
 			// Build and push image
@@ -144,7 +144,7 @@ func newACRCmd() *cobra.Command {
 			fullImageName := fmt.Sprintf("%s.azurecr.io/%s:%s", registry, imageName, imageTag)
 
 			// Check if image already exists
-			logx.Printf("Checking if image already exists: %s", fullImageName)
+			logging.Infof("Checking if image already exists: %s", fullImageName)
 			checkArgs := []string{
 				"acr", "repository", "show-tags",
 				"--name", registry,
@@ -155,13 +155,13 @@ func newACRCmd() *cobra.Command {
 			if err == nil {
 				// Check if the tag exists
 				if strings.Contains(existingTags, imageTag) {
-					logx.Printf("✅ Image already exists: %s", fullImageName)
-					logx.Printf("Skipping build for existing image")
+					logging.Infof("✅ Image already exists: %s", fullImageName)
+					logging.Infof("Skipping build for existing image")
 					return nil
 				}
 			}
 
-			logx.Printf("Building and pushing image: %s", fullImageName)
+			logging.Infof("Building and pushing image: %s", fullImageName)
 
 			// Use az acr build command
 			args := []string{
@@ -179,7 +179,7 @@ func newACRCmd() *cobra.Command {
 			// Add build arguments if any NEXT_PUBLIC_ variables are set
 			buildArgs := collectBuildArgs(cfg)
 			if len(buildArgs) > 0 {
-				logx.Infof("Adding build arguments: %v", buildArgs)
+				logging.Debugf("Adding build arguments: %v", buildArgs)
 				args = append(args, buildArgs...)
 			}
 
@@ -193,7 +193,7 @@ func newACRCmd() *cobra.Command {
 				return fmt.Errorf("failed to build and push image: %w", err)
 			}
 
-			logx.Printf("Successfully built and pushed image: %s", fullImageName)
+			logging.Infof("Successfully built and pushed image: %s", fullImageName)
 			return nil
 		},
 	}

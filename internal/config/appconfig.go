@@ -11,7 +11,8 @@ import (
 
 // fetchAzureAppConfig queries Azure App Configuration via az CLI and returns key-value pairs.
 // It expects 'az appconfig kv list' to be available; if not, returns empty map.
-// nolint:unused // This function is used as a wrapper for fetchAzureAppConfigWithImage
+//
+//nolint:unused // This function is used as a wrapper for fetchAzureAppConfigWithImage
 func fetchAzureAppConfig(ctx context.Context, name, label string) (map[string]string, error) {
 	return fetchAzureAppConfigWithImage(ctx, name, label, "")
 }
@@ -29,11 +30,12 @@ func fetchAzureAppConfigWithImage(ctx context.Context, name, label, imageName st
 
 	// First, try to get the global-configurations key specifically
 	logx.Infof("[DEBUG] Trying to fetch global-configurations key specifically")
-	globalArgs := []string{"appconfig", "kv", "show", "--name", name, "--key", "global-configurations", "--query", "{key:key,value:value}", "-o", "json"}
+	globalArgs := []string{"appconfig", "kv", "show", "--name", name, "--key", "global-configurations",
+		"--query", "{key:key,value:value}", "-o", "json"}
 	if label != "" {
 		globalArgs = append(globalArgs, "--label", label)
 	}
-	globalCmd := exec.CommandContext(ctx, "az", globalArgs...)
+	globalCmd := exec.CommandContext(ctx, "az", globalArgs...) //nolint:gosec // az cli is trusted
 	globalOut, globalErr := globalCmd.Output()
 
 	if globalErr == nil {
@@ -60,8 +62,9 @@ func fetchAzureAppConfigWithImage(ctx context.Context, name, label, imageName st
 		// Try without label if label was specified
 		if label != "" {
 			logx.Infof("[DEBUG] Trying global-configurations without label")
-			globalArgsNoLabel := []string{"appconfig", "kv", "show", "--name", name, "--key", "global-configurations", "--query", "{key:key,value:value}", "-o", "json"}
-			globalCmdNoLabel := exec.CommandContext(ctx, "az", globalArgsNoLabel...)
+			globalArgsNoLabel := []string{"appconfig", "kv", "show", "--name", name, "--key", "global-configurations",
+				"--query", "{key:key,value:value}", "-o", "json"}
+			globalCmdNoLabel := exec.CommandContext(ctx, "az", globalArgsNoLabel...) //nolint:gosec // az cli is trusted
 			globalOutNoLabel, globalErrNoLabel := globalCmdNoLabel.Output()
 
 			if globalErrNoLabel == nil {
@@ -92,11 +95,12 @@ func fetchAzureAppConfigWithImage(ctx context.Context, name, label, imageName st
 	// Second, try to get the service-specific key (e.g., swarm-embedding-service)
 	if imageName != "" {
 		logx.Infof("[DEBUG] Trying to fetch service-specific key: '%s'", imageName)
-		serviceArgs := []string{"appconfig", "kv", "show", "--name", name, "--key", imageName, "--query", "{key:key,value:value}", "-o", "json"}
+		serviceArgs := []string{"appconfig", "kv", "show", "--name", name, "--key", imageName,
+			"--query", "{key:key,value:value}", "-o", "json"}
 		if label != "" {
 			serviceArgs = append(serviceArgs, "--label", label)
 		}
-		serviceCmd := exec.CommandContext(ctx, "az", serviceArgs...)
+		serviceCmd := exec.CommandContext(ctx, "az", serviceArgs...) //nolint:gosec // az cli is trusted
 		serviceOut, serviceErr := serviceCmd.Output()
 
 		if serviceErr == nil {
@@ -122,8 +126,9 @@ func fetchAzureAppConfigWithImage(ctx context.Context, name, label, imageName st
 			// Try without label if label was specified
 			if label != "" {
 				logx.Infof("[DEBUG] Trying service-specific key without label")
-				serviceArgsNoLabel := []string{"appconfig", "kv", "show", "--name", name, "--key", imageName, "--query", "{key:key,value:value}", "-o", "json"}
-				serviceCmdNoLabel := exec.CommandContext(ctx, "az", serviceArgsNoLabel...)
+				serviceArgsNoLabel := []string{"appconfig", "kv", "show", "--name", name, "--key", imageName,
+					"--query", "{key:key,value:value}", "-o", "json"}
+				serviceCmdNoLabel := exec.CommandContext(ctx, "az", serviceArgsNoLabel...) //nolint:gosec // az cli is trusted
 				serviceOutNoLabel, serviceErrNoLabel := serviceCmdNoLabel.Output()
 
 				if serviceErrNoLabel == nil {

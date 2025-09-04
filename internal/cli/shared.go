@@ -20,23 +20,23 @@ func isCIEnvironment() bool {
 // detectEnvironmentFromCI detects the current environment from CI context
 func detectEnvironmentFromCI() string {
 	// Try to detect from GitHub Actions
-	if os.Getenv("GITHUB_ACTIONS") == "true" {
+	if os.Getenv("GITHUB_ACTIONS") == envTrue {
 		ref := os.Getenv("GITHUB_REF")
 		if strings.HasPrefix(ref, "refs/heads/") {
 			branch := strings.TrimPrefix(ref, "refs/heads/")
 			switch branch {
-			case "dev", "development":
-				return "dev"
-			case "staging":
-				return "staging"
-			case "main", "master", "prod", "production":
-				return "prod"
+			case envDev, envDevelopment:
+				return envDev
+			case envStaging:
+				return envStaging
+			case "main", "master", envProd, envProduction:
+				return envProd
 			}
 		}
 	}
 
 	// Try to detect from Azure Pipeline
-	if os.Getenv("AZURE_PIPELINE") == "true" {
+	if os.Getenv("AZURE_PIPELINE") == envTrue {
 		// Azure Pipeline environment variables
 		if env := os.Getenv("SYSTEM_ENVIRONMENT"); env != "" {
 			return strings.ToLower(env)
@@ -44,7 +44,7 @@ func detectEnvironmentFromCI() string {
 	}
 
 	// Try to detect from GitLab CI
-	if os.Getenv("GITLAB_CI") == "true" {
+	if os.Getenv("GITLAB_CI") == envTrue {
 		if env := os.Getenv("CI_ENVIRONMENT_NAME"); env != "" {
 			return strings.ToLower(env)
 		}
@@ -61,7 +61,7 @@ func detectEnvironmentFromCI() string {
 // detectImageNameFromCI detects the image name from CI context
 func detectImageNameFromCI() string {
 	// Try to detect from GitHub Actions
-	if os.Getenv("GITHUB_ACTIONS") == "true" {
+	if os.Getenv("GITHUB_ACTIONS") == envTrue {
 		if repoName := os.Getenv("GITHUB_REPOSITORY"); repoName != "" {
 			// Extract repository name from "owner/repo" format
 			parts := strings.Split(repoName, "/")
@@ -72,14 +72,14 @@ func detectImageNameFromCI() string {
 	}
 
 	// Try to detect from Azure Pipeline
-	if os.Getenv("AZURE_PIPELINE") == "true" {
+	if os.Getenv("AZURE_PIPELINE") == envTrue {
 		if buildRepoName := os.Getenv("BUILD_REPOSITORY_NAME"); buildRepoName != "" {
 			return buildRepoName
 		}
 	}
 
 	// Try to detect from GitLab CI
-	if os.Getenv("GITLAB_CI") == "true" {
+	if os.Getenv("GITLAB_CI") == envTrue {
 		if projectName := os.Getenv("CI_PROJECT_NAME"); projectName != "" {
 			return projectName
 		}
@@ -91,14 +91,14 @@ func detectImageNameFromCI() string {
 // detectImageTagFromCI detects the image tag from CI context
 func detectImageTagFromCI() string {
 	// Try to detect from GitHub Actions
-	if os.Getenv("GITHUB_ACTIONS") == "true" {
+	if os.Getenv("GITHUB_ACTIONS") == envTrue {
 		if sha := os.Getenv("GITHUB_SHA"); sha != "" {
 			return sha
 		}
 	}
 
 	// Try to detect from Azure Pipeline
-	if os.Getenv("AZURE_PIPELINE") == "true" {
+	if os.Getenv("AZURE_PIPELINE") == envTrue {
 		if buildId := os.Getenv("BUILD_BUILDID"); buildId != "" {
 			return buildId
 		}
@@ -108,7 +108,7 @@ func detectImageTagFromCI() string {
 	}
 
 	// Try to detect from GitLab CI
-	if os.Getenv("GITLAB_CI") == "true" {
+	if os.Getenv("GITLAB_CI") == envTrue {
 		if commitSha := os.Getenv("CI_COMMIT_SHA"); commitSha != "" {
 			return commitSha
 		}

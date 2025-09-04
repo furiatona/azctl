@@ -23,11 +23,11 @@ func RenderEnv(input string, cfg *config.Config) (string, error) {
 	var err error
 	t, err = t.Parse(input)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to parse template: %w", err)
 	}
 	var buf bytes.Buffer
 	if err := t.Execute(&buf, map[string]string{}); err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to execute template: %w", err)
 	}
 	return buf.String(), nil
 }

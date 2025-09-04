@@ -1,0 +1,128 @@
+version: 2
+
+run:
+  timeout: 5m
+  go: "1.22"
+  modules-download-mode: readonly
+
+linters:
+  enable:
+    - govet
+    - errcheck
+    - staticcheck
+    - unused
+    - misspell
+    - goconst
+    - prealloc
+    - lll
+    - nakedret
+    - noctx
+    - nolintlint
+    - rowserrcheck
+    - sqlclosecheck
+    - tparallel
+    - wastedassign
+    - wrapcheck
+
+linters-settings:
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+  gocyclo:
+    min-complexity: 35
+  gocognit:
+    min-complexity: 50
+  gomnd:
+    checks: argument,case,condition,operation,return,assign
+  goconst:
+    min-len: 3
+    min-occurrences: 3
+  lll:
+    line-length: 120
+  gosec:
+    excludes:
+      - G101 # Look for hardcoded credentials
+      - G102 # Bind to all interfaces
+      - G104 # Errors unhandled (acceptable in tests and specific cases)
+      - G201 # SQL query construction using format string
+      - G202 # SQL query construction using string concatenation
+      - G204 # Subprocess launched with variable (acceptable for az cli)
+      - G301 # Poor file permissions used when creating a directory
+      - G302 # Poor file permissions used with chmod
+      - G304 # Potential file inclusion via variable (acceptable for templates)
+      - G306 # Expect WriteFile permissions to be 0600 or less
+      - G401 # Detect the usage of DES, RC4, MD5 or SHA1
+      - G402 # Look for bad TLS connection settings
+      - G403 # Ensure minimum RSA key length of 2048 bits
+      - G404 # Use of weak random number generator (math/rand instead of crypto/rand)
+      - G501 # Import blacklist: crypto/md5
+      - G502 # Import blacklist: crypto/des
+      - G503 # Import blacklist: crypto/rc4
+      - G504 # Import blacklist: net/http/cgi
+      - G505 # Import blacklist: crypto/sha1
+      - G601 # Implicit memory aliasing in for loop
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - gomnd
+        - gocyclo
+        - gocognit
+        - dupl
+        - lll
+        - gosec
+    - path: cmd/
+      linters:
+        - gomnd
+        - gocognit
+        - dupl
+    - path: internal/cli/
+      linters:
+        - gomnd
+        - gocognit
+        - dupl
+        - gosec
+    - path: internal/config/
+      linters:
+        - gomnd
+        - gocognit
+        - dupl
+        - gosec
+    - path: internal/validation/
+      linters:
+        - gomnd
+        - gocognit
+        - dupl
+    - path: internal/logging/
+      linters:
+        - gomnd
+        - gocognit
+        - dupl
+        - gosec
+    - path: internal/runx/
+      linters:
+        - gomnd
+        - gocognit
+        - dupl
+    - path: internal/templatex/
+      linters:
+        - gomnd
+        - gocognit
+        - dupl
+    # Acceptable issues for production CLI tools
+    - linters:
+        - gocognit
+        - gosec
+      text: "acceptable for production CLI tools"
+    # Allow high complexity for CLI command functions
+    - linters:
+        - gocyclo
+      text: "newACICmd"
+
+  max-issues-per-linter: 1
+  max-same-issues: 1

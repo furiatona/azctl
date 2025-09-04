@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/furiatona/azctl/internal/config"
-	"github.com/furiatona/azctl/internal/logx"
+	"github.com/furiatona/azctl/internal/logging"
 	"github.com/furiatona/azctl/internal/runx"
 	"github.com/furiatona/azctl/internal/validation"
 
@@ -34,7 +34,7 @@ func newWebAppCmd() *cobra.Command {
 				detectedEnv := detectEnvironmentFromCI()
 				if detectedEnv != "" {
 					envName = detectedEnv
-					logx.Infof("[DEBUG] Auto-detected environment in CI: %s", envName)
+					logging.Debugf("Auto-detected environment in CI: %s", envName)
 				}
 			}
 
@@ -67,15 +67,18 @@ func newWebAppCmd() *cobra.Command {
 
 			if exists {
 				// Update existing WebApp
-				logx.Infof("Updating existing Web App '%s'...", webAppName)
+				logging.Infof("Updating existing Web App '%s'...", webAppName)
 				return updateWebApp(cmd.Context(), resourceGroup, webAppName, cfg)
 			} else {
 				// Create new WebApp
 				if appServicePlan == "" {
-					return fmt.Errorf("WebApp '%s' does not exist and APP_SERVICE_PLAN not provided. Please either:\n1. Set APP_SERVICE_PLAN environment variable to create new web apps, or\n2. Create the web app manually first, or\n3. Use a different web app name that already exists", webAppName)
+					return fmt.Errorf("WebApp '%s' does not exist and APP_SERVICE_PLAN not provided. "+
+						"Please either:\n1. Set APP_SERVICE_PLAN environment variable to create new web apps, or\n"+
+						"2. Create the web app manually first, or\n"+
+						"3. Use a different web app name that already exists", webAppName)
 				}
 
-				logx.Infof("Creating new Web App '%s'...", webAppName)
+				logging.Infof("Creating new Web App '%s'...", webAppName)
 				if err := createWebApp(cmd.Context(), resourceGroup, webAppName, appServicePlan); err != nil {
 					return fmt.Errorf("failed to create WebApp: %w", err)
 				}
@@ -86,7 +89,8 @@ func newWebAppCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&resourceGroup, "resource-group", "", "Resource group (env: RESOURCE_GROUP)")
 	cmd.Flags().StringVar(&webAppName, "name", "", "WebApp name (env: WEBAPP_NAME or <env>_WEBAPP_NAME)")
-	cmd.Flags().StringVar(&appServicePlan, "plan", "", "App Service Plan (env: APP_SERVICE_PLAN or <env>_APP_SERVICE_PLAN)")
+	cmd.Flags().StringVar(&appServicePlan, "plan", "",
+		"App Service Plan (env: APP_SERVICE_PLAN or <env>_APP_SERVICE_PLAN)")
 	return cmd
 }
 
@@ -138,7 +142,7 @@ func createWebApp(ctx context.Context, resourceGroup, webAppName, appServicePlan
 		"--plan", appServicePlan,
 		"--name", webAppName,
 	}
-	return runx.AZ(ctx, args...)
+	return fmt.Errorf("failed to check webapp existence: %w", runx.AZ(ctx, args...))
 }
 
 // updateWebApp updates an existing WebApp with container configuration
@@ -161,5 +165,5 @@ func updateWebApp(ctx context.Context, resourceGroup, webAppName string, cfg *co
 		"--container-image-name", fullImageName,
 		"--container-registry-url", registryUrl,
 	}
-	return runx.AZ(ctx, args...)
+	return fmt.Errorf("failed to create webapp: %w", runx.AZ(ctx, args...))
 }

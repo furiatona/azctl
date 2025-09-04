@@ -16,9 +16,9 @@ func TestImageNameDetectionFromCI(t *testing.T) {
 	}
 
 	// Clean up
-	// nolint:errcheck // os.Unsetenv rarely fails in test cleanup
+	//nolint:errcheck // os.Unsetenv rarely fails in test cleanup
 	os.Unsetenv("GITHUB_ACTIONS")
-	// nolint:errcheck // os.Unsetenv rarely fails in test cleanup
+	//nolint:errcheck // os.Unsetenv rarely fails in test cleanup
 	os.Unsetenv("GITHUB_REPOSITORY")
 }
 
@@ -33,8 +33,8 @@ func TestImageTagDetectionFromCI(t *testing.T) {
 	}
 
 	// Clean up
-	// nolint:errcheck // os.Unsetenv rarely fails in test cleanup
+	//nolint:errcheck // os.Unsetenv rarely fails in test cleanup
 	os.Unsetenv("GITHUB_ACTIONS")
-	// nolint:errcheck // os.Unsetenv rarely fails in test cleanup
+	//nolint:errcheck // os.Unsetenv rarely fails in test cleanup
 	os.Unsetenv("GITHUB_SHA")
 }

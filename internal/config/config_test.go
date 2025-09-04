@@ -3,20 +3,21 @@ package config
 import (
 	"context"
 	"os"
+	"sync"
 	"testing"
 )
 
 func TestConfigPrecedence(t *testing.T) {
 	// Clean up environment
 	defer func() {
-		// nolint:errcheck // os.Unsetenv rarely fails in test cleanup
+		//nolint:errcheck // os.Unsetenv rarely fails in test cleanup
 		os.Unsetenv("TEST_VAR")
-		os.Unsetenv("CI") // nolint:errcheck
+		os.Unsetenv("CI") //nolint:errcheck
 	}()
 
 	// Test 1: Environment variable only
-	// nolint:errcheck // os.Setenv rarely fails in test setup
-	os.Setenv("TEST_VAR", "from_env")
+	//nolint:errcheck // os.Setenv rarely fails in test setup
+	os.Setenv("TEST_VAR", "from_env") //nolint:gosec // acceptable in test setup
 	err := Init(context.Background(), "", "")
 	if err != nil {
 		t.Fatalf("Init failed: %v", err)
@@ -34,13 +35,22 @@ func TestConfigPrecedence(t *testing.T) {
 }
 
 func TestConfigRequire(t *testing.T) {
+	// Reset global config for this test
+	globalConfig = nil
+	configOnce = sync.Once{}
+
 	defer func() {
-		// nolint:errcheck // os.Unsetenv rarely fails in test cleanup
+		//nolint:errcheck // os.Unsetenv rarely fails in test cleanup
 		os.Unsetenv("REQUIRED_VAR")
+		//nolint:errcheck // os.Unsetenv rarely fails in test cleanup
+		os.Unsetenv("MISSING_REQUIRED")
+		// Reset global config after test
+		globalConfig = nil
+		configOnce = sync.Once{}
 	}()
 
-	// nolint:errcheck // os.Setenv rarely fails in test setup
-	os.Setenv("REQUIRED_VAR", "value")
+	//nolint:errcheck // os.Setenv rarely fails in test setup
+	os.Setenv("REQUIRED_VAR", "value") //nolint:gosec // acceptable in test setup
 	_ = Init(context.Background(), "", "")
 	cfg := Current()
 
@@ -60,9 +70,9 @@ func TestConfigRequire(t *testing.T) {
 
 func TestCISkipsEnvFile(t *testing.T) {
 	defer func() {
-		// nolint:errcheck // os.Unsetenv rarely fails in test cleanup
+		//nolint:errcheck // os.Unsetenv rarely fails in test cleanup
 		os.Unsetenv("CI")
-		os.Unsetenv("TEST_CI_VAR") // nolint:errcheck
+		os.Unsetenv("TEST_CI_VAR") //nolint:errcheck
 	}()
 
 	// Create a temp .env file
@@ -72,9 +82,9 @@ func TestCISkipsEnvFile(t *testing.T) {
 	}
 
 	// Test with CI=true - should skip .env
-	// nolint:errcheck // os.Setenv rarely fails in test setup
-	os.Setenv("CI", "true")
-	os.Setenv("TEST_CI_VAR", "from_env") // nolint:errcheck
+	//nolint:errcheck // os.Setenv rarely fails in test setup
+	os.Setenv("CI", "true")              //nolint:gosec // acceptable in test setup
+	os.Setenv("TEST_CI_VAR", "from_env") //nolint:errcheck // acceptable in test setup
 
 	err := Init(context.Background(), envFile, "")
 	if err != nil {

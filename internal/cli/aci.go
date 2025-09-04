@@ -9,12 +9,20 @@ import (
 
 	"github.com/furiatona/azctl/internal/config"
 	"github.com/furiatona/azctl/internal/logging"
-	"github.com/furiatona/azctl/internal/logx"
 	"github.com/furiatona/azctl/internal/runx"
 	"github.com/furiatona/azctl/internal/templatex"
 	"github.com/furiatona/azctl/internal/validation"
 
 	"github.com/spf13/cobra"
+)
+
+const (
+	envProd        = "prod"
+	envProduction  = "production"
+	envDev         = "dev"
+	envDevelopment = "development"
+	envStaging     = "staging"
+	envTrue        = "true"
 )
 
 func newACICmd() *cobra.Command {
@@ -32,9 +40,9 @@ func newACICmd() *cobra.Command {
 			envName, _ := cmd.Flags().GetString("env")
 
 			// Check for production environment early
-			if envName == "prod" || envName == "production" {
-				logx.Infof("Production deployment is coming soon!")
-				logx.Infof("For now, please use --dry-run to generate the ACI JSON and deploy manually.")
+			if envName == envProd || envName == envProduction {
+				logging.Infof("Production deployment is coming soon!")
+				logging.Infof("For now, please use --dry-run to generate the ACI JSON and deploy manually.")
 				return nil
 			}
 
@@ -45,14 +53,14 @@ func newACICmd() *cobra.Command {
 				detectedEnv := detectEnvironmentFromCI()
 				if detectedEnv != "" {
 					envName = detectedEnv
-					logx.Infof("[DEBUG] Auto-detected environment in CI: %s", envName)
+					logging.Debugf("Auto-detected environment in CI: %s", envName)
 				}
 			}
 
 			// Set environment name for Fluent-bit configuration
 			if envName != "" {
 				cfg.Set("ENV_NAME", envName)
-				logx.Infof("[DEBUG] Set ENV_NAME='%s' for Fluent-bit config", envName)
+				logging.Debugf("Set ENV_NAME='%s' for Fluent-bit config", envName)
 			}
 
 			// Auto-detect IMAGE_NAME, IMAGE_TAG, CONTAINER_GROUP_NAME, and DNS_NAME_LABEL in CI if not set
@@ -60,19 +68,19 @@ func newACICmd() *cobra.Command {
 				if cfg.Get("IMAGE_NAME") == "" {
 					if detectedImageName := detectImageNameFromCI(); detectedImageName != "" {
 						cfg.Set("IMAGE_NAME", detectedImageName)
-						logx.Infof("[DEBUG] Auto-detected IMAGE_NAME from CI: %s", detectedImageName)
+						logging.Debugf("Auto-detected IMAGE_NAME from CI: %s", detectedImageName)
 					}
 				}
 				if cfg.Get("IMAGE_TAG") == "" {
 					if detectedImageTag := detectImageTagFromCI(); detectedImageTag != "" {
 						cfg.Set("IMAGE_TAG", detectedImageTag)
-						logx.Infof("[DEBUG] Auto-detected IMAGE_TAG from CI: %s", detectedImageTag)
+						logging.Debugf("Auto-detected IMAGE_TAG from CI: %s", detectedImageTag)
 					}
 				}
 				if cfg.Get("CONTAINER_GROUP_NAME") == "" {
 					if detectedImageName := detectImageNameFromCI(); detectedImageName != "" {
 						cfg.Set("CONTAINER_GROUP_NAME", detectedImageName)
-						logx.Infof("[DEBUG] Auto-detected CONTAINER_GROUP_NAME from CI: %s", detectedImageName)
+						logging.Debugf("Auto-detected CONTAINER_GROUP_NAME from CI: %s", detectedImageName)
 					}
 				}
 				if cfg.Get("DNS_NAME_LABEL") == "" {
@@ -80,7 +88,7 @@ func newACICmd() *cobra.Command {
 					if containerName != "" && envName != "" {
 						dnsNameLabel := fmt.Sprintf("%s-%s", containerName, envName)
 						cfg.Set("DNS_NAME_LABEL", dnsNameLabel)
-						logx.Infof("[DEBUG] Auto-detected DNS_NAME_LABEL from CI: %s", dnsNameLabel)
+						logging.Debugf("Auto-detected DNS_NAME_LABEL from CI: %s", dnsNameLabel)
 					}
 				}
 			}
@@ -108,7 +116,7 @@ func newACICmd() *cobra.Command {
 				resourceGroup = cfg.Get(envResourceGroupKey)
 				if resourceGroup != "" {
 					cfg.Set("RESOURCE_GROUP", resourceGroup)
-					logx.Infof("[DEBUG] Mapped %s='%s' to RESOURCE_GROUP", envResourceGroupKey, resourceGroup)
+					logging.Debugf("Mapped %s='%s' to RESOURCE_GROUP", envResourceGroupKey, resourceGroup)
 				}
 			}
 
@@ -117,7 +125,7 @@ func newACICmd() *cobra.Command {
 				acrRegistry := cfg.Get("ACR_REGISTRY")
 				if acrRegistry != "" {
 					cfg.Set("IMAGE_REGISTRY", acrRegistry)
-					logx.Infof("[DEBUG] Mapped ACR_REGISTRY='%s' to IMAGE_REGISTRY", acrRegistry)
+					logging.Debugf("Mapped ACR_REGISTRY='%s' to IMAGE_REGISTRY", acrRegistry)
 				}
 			}
 
@@ -130,13 +138,13 @@ func newACICmd() *cobra.Command {
 			}
 
 			// render template by replacing {{VAR}} placeholders with values from cfg
-			raw, err := os.ReadFile(templatePath)
+			raw, err := os.ReadFile(templatePath) //nolint:gosec // templatePath is validated
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to read template file: %w", err)
 			}
 			rendered, err := templatex.RenderEnv(string(raw), cfg)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to render template: %w", err)
 			}
 
 			// validate JSON
@@ -153,7 +161,7 @@ func newACICmd() *cobra.Command {
 
 			if dryRun {
 				// Create .azctl directory if it doesn't exist
-				if err := os.MkdirAll(".azctl", 0755); err != nil {
+				if err := os.MkdirAll(".azctl", 0755); err != nil { //nolint:gosec // acceptable permissions for directory
 					return fmt.Errorf("failed to create .azctl directory: %w", err)
 				}
 
@@ -163,8 +171,8 @@ func newACICmd() *cobra.Command {
 					return fmt.Errorf("failed to write dry-run output: %w", err)
 				}
 
-				logx.Infof("Dry run complete. Generated ACI JSON written to: %s", outputFile)
-				logx.Infof("Review the file and run without --dry-run to deploy")
+				logging.Infof("Dry run complete. Generated ACI JSON written to: %s", outputFile)
+				logging.Infof("Review the file and run without --dry-run to deploy")
 				return nil
 			}
 
@@ -179,7 +187,8 @@ func newACICmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&resourceGroup, "resource-group", "", "Resource group (env: AZURE_RESOURCE_GROUP)")
 	cmd.Flags().StringVar(&templatePath, "template", "", "Path to aci.json template")
-	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Generate ACI JSON without deploying (outputs to .azctl/aci-dry-run.json)")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false,
+		"Generate ACI JSON without deploying (outputs to .azctl/aci-dry-run.json)")
 	return cmd
 }
 
@@ -234,25 +243,25 @@ func deployACI(ctx context.Context, resourceGroup, envName, rendered string) err
 			containerGroupName = cfg.Get("IMAGE_NAME") // fallback to image name
 		}
 
-		logx.Printf("🔍 Environment: %s - Checking for existing container group: %s", envName, containerGroupName)
+		logging.Infof("🔍 Environment: %s - Checking for existing container group: %s", envName, containerGroupName)
 
 		// Check if container group exists
 		exists, err := checkContainerGroupExists(ctx, resourceGroup, containerGroupName)
 		if err != nil {
-			logx.Warnf("Failed to check if container group exists: %v", err)
+			logging.Warnf("Failed to check if container group exists: %v", err)
 		} else if exists {
-			logx.Printf("🗑️  Container group %s exists. Deleting it...", containerGroupName)
+			logging.Infof("🗑️  Container group %s exists. Deleting it...", containerGroupName)
 			if err := deleteContainerGroup(ctx, resourceGroup, containerGroupName); err != nil {
 				return fmt.Errorf("failed to delete existing container group: %w", err)
 			}
-			logx.Printf("✅ Container group %s deleted successfully", containerGroupName)
+			logging.Infof("✅ Container group %s deleted successfully", containerGroupName)
 		} else {
-			logx.Printf("📝 Container group %s does not exist. Proceeding with creation...", containerGroupName)
+			logging.Infof("📝 Container group %s does not exist. Proceeding with creation...", containerGroupName)
 		}
 	}
 
 	// Create new container group
-	logx.Printf("🚀 Creating new container group...")
+	logging.Infof("🚀 Creating new container group...")
 	return createContainerGroup(ctx, resourceGroup, rendered)
 }
 
@@ -282,7 +291,7 @@ func deleteContainerGroup(ctx context.Context, resourceGroup, containerGroupName
 		"--yes", // Skip confirmation
 	}
 
-	return runx.AZ(ctx, args...)
+	return fmt.Errorf("failed to delete container group: %w", runx.AZ(ctx, args...))
 }
 
 // createContainerGroup creates a new container group from JSON
@@ -290,19 +299,20 @@ func createContainerGroup(ctx context.Context, resourceGroup, rendered string) e
 	// Write to temp file for az cli
 	f, err := os.CreateTemp("", "aci-*.json")
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create temp file: %w", err)
 	}
 	defer func() {
 		if err := os.Remove(f.Name()); err != nil {
-			logx.Warnf("failed to remove temp file %s: %v", f.Name(), err)
+			logging.Warnf("failed to remove temp file %s: %v", f.Name(), err)
 		}
 	}()
 	if _, err := f.WriteString(rendered); err != nil {
-		return err
+		return fmt.Errorf("failed to write to temp file: %w", err)
 	}
 	if err := f.Close(); err != nil {
-		return err
+		return fmt.Errorf("failed to close temp file: %w", err)
 	}
 
-	return runx.AZ(ctx, "container", "create", "--resource-group", resourceGroup, "--file", f.Name())
+	return fmt.Errorf("failed to create container group: %w",
+		runx.AZ(ctx, "container", "create", "--resource-group", resourceGroup, "--file", f.Name()))
 }

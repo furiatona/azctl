@@ -5,167 +5,266 @@ import (
 	"fmt"
 	"os"
 	"strings"
-
-	"github.com/furiatona/azctl/internal/logx"
+	"sync"
 
 	"github.com/joho/godotenv"
 )
 
-// Provider precedence (low -> high):
-// 1) Azure App Config (future extension hook)
-// 2) .env file
-// 3) Environment Variables
-// 4) CLI Flags (handled in commands before querying Config)
+const envTrue = "true"
 
-type Config struct {
-	values map[string]string
+// Provider defines the interface for configuration providers
+type Provider interface {
+	Name() string
+	Load(ctx context.Context) (map[string]string, error)
+	Priority() int // Higher priority means higher precedence
 }
 
-var current *Config
+// Config represents the application configuration
+type Config struct {
+	values map[string]string
+	mu     sync.RWMutex
+}
 
-func Init(ctx context.Context, envfile string, env string) error {
-	// Merge order (low -> high): Azure App Config -> .env -> OS env
-	merged := map[string]string{}
+// New creates a new configuration instance
+func New() *Config {
+	return &Config{
+		values: make(map[string]string),
+	}
+}
 
-	// First pass: Load .env to get IMAGE_NAME for Azure App Config
-	envImageName := ""
-	if os.Getenv("CI") != "true" && envfile != "" {
-		if _, err := os.Stat(envfile); err == nil {
-			logx.Infof("[DEBUG] Pre-loading .env file for IMAGE_NAME: %s", envfile)
-			if m, err := godotenv.Read(envfile); err != nil {
-				logx.Warnf("failed reading .env: %v", err)
-			} else {
-				if imageName, ok := m["IMAGE_NAME"]; ok {
-					envImageName = imageName
-					logx.Infof("[DEBUG] Found IMAGE_NAME in .env: '%s'", envImageName)
-				}
+// Load loads configuration from multiple sources with proper precedence
+func (c *Config) Load(ctx context.Context, envfile string, env string) error {
+	providers := []Provider{
+		&AzureAppConfigProvider{env: env},
+		&EnvFileProvider{envfile: envfile},
+		&EnvironmentProvider{},
+	}
+
+	// Sort providers by priority (highest first)
+	for i := 0; i < len(providers)-1; i++ {
+		for j := i + 1; j < len(providers); j++ {
+			if providers[i].Priority() < providers[j].Priority() {
+				providers[i], providers[j] = providers[j], providers[i]
 			}
 		}
 	}
 
-	// Azure App Configuration (lowest precedence) - now with environment and IMAGE_NAME from .env
-	if os.Getenv("APP_CONFIG_SKIP") != "true" {
-		name := os.Getenv("APP_CONFIG_NAME")
-		if name == "" {
-			name = os.Getenv("APP_CONFIG") // Fallback to APP_CONFIG
-		}
-		label := env // Use environment as label for Azure App Config
-
-		// Determine service name for Azure App Config
-		// In CI: auto-detect from GITHUB_REPOSITORY
-		// In local: use IMAGE_NAME from .env or environment
-		serviceName := ""
-		if os.Getenv("CI") == "true" {
-			// Auto-detect service name from CI context
-			if os.Getenv("GITHUB_ACTIONS") == "true" {
-				if repoName := os.Getenv("GITHUB_REPOSITORY"); repoName != "" {
-					parts := strings.Split(repoName, "/")
-					if len(parts) == 2 {
-						serviceName = parts[1]
-					}
-				}
-			}
-		} else {
-			// Use IMAGE_NAME from .env if available, otherwise from OS env
-			serviceName = envImageName
-			if serviceName == "" {
-				serviceName = os.Getenv("IMAGE_NAME")
-			}
+	// Load from each provider
+	for _, provider := range providers {
+		values, err := provider.Load(ctx)
+		if err != nil {
+			continue
 		}
 
-		logx.Infof("[DEBUG] Using service name for Azure App Config: '%s', environment: '%s', app config: '%s'", serviceName, env, name)
-		if name != "" {
-			if kvs, err := fetchAzureAppConfigWithImage(ctx, name, label, serviceName); err != nil {
-				logx.Warnf("azure appconfig fetch failed: %v", err)
-			} else {
-				logx.Infof("[DEBUG] Loaded %d variables from Azure App Config", len(kvs))
-				for k, v := range kvs {
-					logx.Infof("[DEBUG] From Azure App Config: %s='%s'", k, v)
-					merged[strings.ToUpper(k)] = v
-				}
-			}
-		} else {
-			logx.Infof("[DEBUG] No APP_CONFIG_NAME or APP_CONFIG set, skipping Azure App Configuration")
+		c.mu.Lock()
+		for k, v := range values {
+			c.values[strings.ToUpper(k)] = v
 		}
-	}
-
-	// .env (middle precedence) - load only when not in CI
-	if os.Getenv("CI") != "true" {
-		if envfile != "" {
-			if _, err := os.Stat(envfile); err == nil {
-				logx.Infof("[DEBUG] Loading .env file: %s", envfile)
-				if m, err := godotenv.Read(envfile); err != nil {
-					logx.Warnf("failed reading .env: %v", err)
-				} else {
-					logx.Infof("[DEBUG] Loaded %d variables from .env file", len(m))
-					for k, v := range m {
-						logx.Infof("[DEBUG] From .env: %s='%s'", strings.ToUpper(k), v)
-						merged[strings.ToUpper(k)] = v
-					}
-				}
-			} else {
-				logx.Infof("[DEBUG] .env file not found: %s", envfile)
-			}
-		} else {
-			logx.Infof("[DEBUG] No envfile specified, skipping .env loading")
-		}
-	} else {
-		logx.Infof("[DEBUG] CI=true, skipping .env file loading")
-	}
-
-	// OS environment variables (highest among config sources)
-	for _, env := range os.Environ() {
-		kv := strings.SplitN(env, "=", 2)
-		if len(kv) == 2 {
-			merged[strings.ToUpper(kv[0])] = kv[1]
-		}
+		c.mu.Unlock()
 	}
 
 	// Apply fallback logic for common variables
-	if merged["ACR_REGISTRY"] == "" {
-		// Try to derive ACR_REGISTRY from other sources
-		if registry := merged["REGISTRY"]; registry != "" {
-			merged["ACR_REGISTRY"] = registry
-			logx.Infof("[DEBUG] Derived ACR_REGISTRY from REGISTRY: '%s'", registry)
-		}
-	}
+	c.applyFallbacks()
 
-	current = &Config{values: merged}
 	return nil
 }
 
-func Current() *Config {
-	if current == nil {
-		panic("config not initialized")
-	}
-	return current
-}
-
+// Get retrieves a configuration value by key
 func (c *Config) Get(key string) string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
 	if v, ok := c.values[strings.ToUpper(key)]; ok {
 		return v
 	}
 	return ""
 }
 
+// Set sets a configuration value
 func (c *Config) Set(key, value string) {
-	if c.values == nil {
-		c.values = make(map[string]string)
-	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	c.values[strings.ToUpper(key)] = value
 }
 
+// GetAll returns all configuration values
 func (c *Config) GetAll() map[string]string {
-	if c.values == nil {
-		return map[string]string{}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	result := make(map[string]string)
+	for k, v := range c.values {
+		result[k] = v
 	}
-	return c.values
+	return result
 }
 
+// Require retrieves a required configuration value, panicking if not found
 func (c *Config) Require(key string) string {
 	v := c.Get(key)
 	if v == "" {
-		panic(fmt.Errorf("missing required variable: %s", key))
+		panic(fmt.Errorf("missing required configuration: %s", key))
 	}
 	return v
+}
+
+// Has checks if a configuration key exists
+func (c *Config) Has(key string) bool {
+	return c.Get(key) != ""
+}
+
+// applyFallbacks applies fallback logic for common variables
+func (c *Config) applyFallbacks() {
+	// Try to derive ACR_REGISTRY from other sources
+	if c.Get("ACR_REGISTRY") == "" {
+		if registry := c.Get("REGISTRY"); registry != "" {
+			c.Set("ACR_REGISTRY", registry)
+		}
+	}
+
+	// Map ACR_REGISTRY to IMAGE_REGISTRY for template compatibility
+	if c.Get("IMAGE_REGISTRY") == "" {
+		if acrRegistry := c.Get("ACR_REGISTRY"); acrRegistry != "" {
+			c.Set("IMAGE_REGISTRY", acrRegistry)
+		}
+	}
+}
+
+// Validate validates that all required variables are present
+func (c *Config) Validate(required []string) error {
+	var missing []string
+	for _, v := range required {
+		if !c.Has(v) {
+			missing = append(missing, v)
+		}
+	}
+
+	if len(missing) > 0 {
+		return fmt.Errorf("missing required configuration variables: %s", strings.Join(missing, ", "))
+	}
+
+	return nil
+}
+
+// EnvironmentProvider loads configuration from environment variables
+type EnvironmentProvider struct{}
+
+func (p *EnvironmentProvider) Name() string  { return "Environment" }
+func (p *EnvironmentProvider) Priority() int { return 100 }
+
+func (p *EnvironmentProvider) Load(ctx context.Context) (map[string]string, error) {
+	values := make(map[string]string)
+	for _, env := range os.Environ() {
+		kv := strings.SplitN(env, "=", 2)
+		if len(kv) == 2 {
+			values[strings.ToUpper(kv[0])] = kv[1]
+		}
+	}
+	return values, nil
+}
+
+// EnvFileProvider loads configuration from .env files
+type EnvFileProvider struct {
+	envfile string
+}
+
+func (p *EnvFileProvider) Name() string  { return "EnvFile" }
+func (p *EnvFileProvider) Priority() int { return 50 }
+
+func (p *EnvFileProvider) Load(ctx context.Context) (map[string]string, error) {
+	if p.envfile == "" {
+		return make(map[string]string), nil
+	}
+
+	// Skip .env loading in CI environments
+	if os.Getenv("CI") == envTrue {
+		return make(map[string]string), nil
+	}
+
+	if _, err := os.Stat(p.envfile); err != nil {
+		return make(map[string]string), nil
+	}
+
+	values, err := godotenv.Read(p.envfile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read env file %s: %w", p.envfile, err)
+	}
+
+	// Convert to uppercase keys
+	result := make(map[string]string)
+	for k, v := range values {
+		result[strings.ToUpper(k)] = v
+	}
+
+	return result, nil
+}
+
+// AzureAppConfigProvider loads configuration from Azure App Configuration
+type AzureAppConfigProvider struct {
+	env string
+}
+
+func (p *AzureAppConfigProvider) Name() string  { return "AzureAppConfig" }
+func (p *AzureAppConfigProvider) Priority() int { return 10 }
+
+func (p *AzureAppConfigProvider) Load(ctx context.Context) (map[string]string, error) {
+	// Skip if explicitly disabled
+	if os.Getenv("APP_CONFIG_SKIP") == envTrue {
+		return make(map[string]string), nil
+	}
+
+	name := os.Getenv("APP_CONFIG_NAME")
+	if name == "" {
+		name = os.Getenv("APP_CONFIG")
+	}
+
+	if name == "" {
+		return make(map[string]string), nil
+	}
+
+	// Determine service name for Azure App Config
+	serviceName := p.determineServiceName()
+
+	return fetchAzureAppConfigWithImage(ctx, name, p.env, serviceName)
+}
+
+// determineServiceName determines the service name for Azure App Config
+func (p *AzureAppConfigProvider) determineServiceName() string {
+	// In CI: auto-detect from GITHUB_REPOSITORY
+	if os.Getenv("CI") == envTrue {
+		if os.Getenv("GITHUB_ACTIONS") == envTrue {
+			if repoName := os.Getenv("GITHUB_REPOSITORY"); repoName != "" {
+				parts := strings.Split(repoName, "/")
+				if len(parts) == 2 {
+					return parts[1]
+				}
+			}
+		}
+	}
+
+	// Use IMAGE_NAME from environment
+	return os.Getenv("IMAGE_NAME")
+}
+
+// Global configuration instance
+var globalConfig *Config
+var configOnce sync.Once
+
+// Init initializes the global configuration
+func Init(ctx context.Context, envfile string, env string) error {
+	var initErr error
+	configOnce.Do(func() {
+		globalConfig = New()
+		initErr = globalConfig.Load(ctx, envfile, env)
+	})
+	return initErr
+}
+
+// Current returns the current global configuration
+func Current() *Config {
+	if globalConfig == nil {
+		panic("configuration not initialized")
+	}
+	return globalConfig
 }

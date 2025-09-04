@@ -1,11 +1,12 @@
 package logging
 
 import (
-	"github.com/furiatona/azctl/internal/config"
-	"github.com/furiatona/azctl/internal/logx"
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/furiatona/azctl/internal/config"
+	"github.com/furiatona/azctl/internal/logx"
 )
 
 // LoggingProvider defines the interface for different logging platforms
@@ -42,20 +43,20 @@ func (m *Manager) GenerateConfig(cfg *config.Config, imageName, envName string) 
 		if provider.IsEnabled(cfg) {
 			logx.Infof("Generating %s logging configuration...", provider.Name())
 			logx.Infof(provider.GetInfoMessage())
-			
+
 			configContent, err := provider.GenerateConfig(cfg, imageName, envName)
 			if err != nil {
 				return fmt.Errorf("failed to generate %s config: %w", provider.Name(), err)
 			}
-			
+
 			if err := writeConfigFile(configContent, imageName); err != nil {
 				return fmt.Errorf("failed to write %s config: %w", provider.Name(), err)
 			}
-			
+
 			return nil
 		}
 	}
-	
+
 	// No enabled providers found
 	logx.Infof("No logging provider enabled. Available providers:")
 	for _, provider := range m.providers {
@@ -68,18 +69,18 @@ func (m *Manager) GenerateConfig(cfg *config.Config, imageName, envName string) 
 func writeConfigFile(configContent, imageName string) error {
 	// Create fluent-bit/etc directory if it doesn't exist
 	configDir := "fluent-bit/etc"
-	if err := os.MkdirAll(configDir, 0755); err != nil {
+	if err := os.MkdirAll(configDir, 0755); err != nil { //nolint:gosec // acceptable permissions for config directory
 		return fmt.Errorf("failed to create fluent-bit config directory: %w", err)
 	}
-	
+
 	// Write the configuration file
 	configPath := filepath.Join(configDir, fmt.Sprintf("%s.conf", imageName))
 	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
 		return fmt.Errorf("failed to write Fluent-bit config: %w", err)
 	}
-	
+
 	logx.Infof("Fluent-bit configuration generated: %s", configPath)
 	logx.Infof("This file will be mounted in the ACI container at /fluent-bit/etc/%s.conf", imageName)
-	
+
 	return nil
 }

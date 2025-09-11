@@ -177,6 +177,7 @@ func updateWebApp(ctx context.Context, resourceGroup, webAppName string, cfg *co
 	fullImageName := fmt.Sprintf("%s/%s:%s", registry, imageName, imageTag)
 	registryUrl := fmt.Sprintf("https://%s", registry)
 
+	// Set container image
 	args := []string{
 		"webapp", "config", "container", "set",
 		"--name", webAppName,
@@ -185,7 +186,77 @@ func updateWebApp(ctx context.Context, resourceGroup, webAppName string, cfg *co
 		"--container-registry-url", registryUrl,
 	}
 	if err := runx.AZ(ctx, args...); err != nil {
-		return fmt.Errorf("failed to update webapp: %w", err)
+		return fmt.Errorf("failed to update webapp container: %w", err)
 	}
+
+	// Set application settings (environment variables) from config
+	if err := setWebAppSettings(ctx, resourceGroup, webAppName, cfg); err != nil {
+		return fmt.Errorf("failed to set webapp settings: %w", err)
+	}
+
 	return nil
+}
+
+// setWebAppSettings sets application settings (environment variables) for the WebApp
+func setWebAppSettings(ctx context.Context, resourceGroup, webAppName string, cfg *config.Config) error {
+	// Collect all environment variables from config
+	var settings []string
+	for key, value := range cfg.GetAll() {
+		// Skip internal azctl variables that shouldn't be passed to the container
+		if isInternalVariable(key) {
+			continue
+		}
+		settings = append(settings, fmt.Sprintf("%s=%s", key, value))
+	}
+
+	if len(settings) == 0 {
+		logging.Debugf("No application settings to configure for WebApp '%s'", webAppName)
+		return nil
+	}
+
+	// Set application settings using az CLI
+	args := []string{
+		"webapp", "config", "appsettings", "set",
+		"--name", webAppName,
+		"--resource-group", resourceGroup,
+		"--settings",
+	}
+	args = append(args, settings...)
+
+	logging.Debugf("Setting %d application settings for WebApp '%s'", len(settings), webAppName)
+	if err := runx.AZ(ctx, args...); err != nil {
+		return fmt.Errorf("failed to set application settings: %w", err)
+	}
+
+	logging.Infof("✅ Set %d application settings for WebApp '%s'", len(settings), webAppName)
+	return nil
+}
+
+// isInternalVariable checks if a variable is internal to azctl and shouldn't be passed to containers
+func isInternalVariable(key string) bool {
+	internalVars := []string{
+		"ACR_REGISTRY",
+		"ACR_RESOURCE_GROUP", 
+		"ACR_USERNAME",
+		"ACR_PASSWORD",
+		"RESOURCE_GROUP",
+		"IMAGE_NAME",
+		"IMAGE_TAG",
+		"WEBAPP_NAME",
+		"APP_SERVICE_PLAN",
+		"LOG_STORAGE_ACCOUNT",
+		"LOG_STORAGE_KEY",
+		"LOG_STORAGE_NAME",
+		"FLUENTBIT_CONFIG",
+		"APP_CONFIG_NAME",
+		"APP_CONFIG_LABEL",
+		"APP_CONFIG_SKIP",
+	}
+	
+	for _, internal := range internalVars {
+		if key == internal {
+			return true
+		}
+	}
+	return false
 }

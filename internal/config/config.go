@@ -226,7 +226,14 @@ func (p *AzureAppConfigProvider) Load(ctx context.Context) (map[string]string, e
 	// Determine service name for Azure App Config
 	serviceName := p.determineServiceName()
 
-	return fetchAzureAppConfigWithImage(ctx, name, p.env, serviceName)
+	// Get the label from APP_CONFIG_LABEL environment variable
+	label := os.Getenv("APP_CONFIG_LABEL")
+	if label == "" {
+		// Fallback to environment name if no label is specified
+		label = p.env
+	}
+
+	return fetchAzureAppConfigWithImage(ctx, name, label, serviceName)
 }
 
 // determineServiceName determines the service name for Azure App Config

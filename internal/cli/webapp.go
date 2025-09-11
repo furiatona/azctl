@@ -292,9 +292,9 @@ func setWebAppRegistryCredentials(ctx context.Context, resourceGroup, webAppName
 	}
 	args = append(args, registrySettings...)
 
-	logging.Debugf("Setting Docker registry credentials for WebApp '%s': URL=%s, Username=%s", 
+	logging.Debugf("Setting Docker registry credentials for WebApp '%s': URL=%s, Username=%s",
 		webAppName, registryUrl, acrUsername)
-	
+
 	if err := runx.AZ(ctx, args...); err != nil {
 		return fmt.Errorf("failed to set Docker registry credentials: %w", err)
 	}

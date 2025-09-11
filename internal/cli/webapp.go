@@ -207,20 +207,20 @@ func setWebAppSettings(ctx context.Context, resourceGroup, webAppName string, cf
 		if isInternalVariable(key) {
 			continue
 		}
-		
+
 		// Skip variables with very long values that might cause Azure CLI issues
 		if len(value) > 4000 {
 			logging.Debugf("Skipping variable '%s' - value too long (%d chars)", key, len(value))
 			continue
 		}
-		
+
 		// Only include variables that are application-specific (similar to ACI environmentVariables)
 		if !isApplicationVariable(key) {
 			logging.Debugf("Skipping infrastructure variable '%s'", key)
 			continue
 		}
-		
-		// Escape the value for shell safety
+
+		// Escape the value for shell safety (but don't add quotes)
 		escapedValue := escapeShellValue(value)
 		settings = append(settings, fmt.Sprintf("%s=%s", key, escapedValue))
 		logging.Debugf("Including application setting: %s", key)
@@ -238,7 +238,7 @@ func setWebAppSettings(ctx context.Context, resourceGroup, webAppName string, cf
 		if end > len(settings) {
 			end = len(settings)
 		}
-		
+
 		batch := settings[i:end]
 		args := []string{
 			"webapp", "config", "appsettings", "set",
@@ -248,9 +248,9 @@ func setWebAppSettings(ctx context.Context, resourceGroup, webAppName string, cf
 		}
 		args = append(args, batch...)
 
-		logging.Debugf("Setting batch %d/%d (%d settings) for WebApp '%s'", 
+		logging.Debugf("Setting batch %d/%d (%d settings) for WebApp '%s'",
 			(i/batchSize)+1, (len(settings)+batchSize-1)/batchSize, len(batch), webAppName)
-		
+
 		if err := runx.AZ(ctx, args...); err != nil {
 			return fmt.Errorf("failed to set application settings batch %d: %w", (i/batchSize)+1, err)
 		}
@@ -262,17 +262,17 @@ func setWebAppSettings(ctx context.Context, resourceGroup, webAppName string, cf
 
 // escapeShellValue escapes a value for safe use in shell commands
 func escapeShellValue(value string) string {
-	// Replace quotes with escaped quotes
+	// Replace quotes with escaped quotes and handle special characters
+	// Don't wrap in quotes as Azure CLI handles the values properly
 	escaped := strings.ReplaceAll(value, `"`, `\"`)
-	// Wrap in quotes to handle spaces and special characters
-	return `"` + escaped + `"`
+	return escaped
 }
 
 // isInternalVariable checks if a variable is internal to azctl and shouldn't be passed to containers
 func isInternalVariable(key string) bool {
 	internalVars := []string{
 		"ACR_REGISTRY",
-		"ACR_RESOURCE_GROUP", 
+		"ACR_RESOURCE_GROUP",
 		"ACR_USERNAME",
 		"ACR_PASSWORD",
 		"RESOURCE_GROUP",
@@ -288,7 +288,7 @@ func isInternalVariable(key string) bool {
 		"APP_CONFIG_LABEL",
 		"APP_CONFIG_SKIP",
 	}
-	
+
 	for _, internal := range internalVars {
 		if key == internal {
 			return true
@@ -311,26 +311,26 @@ func isApplicationVariable(key string) bool {
 		"FIREBASE_",
 		"SAGEMAKER_",
 	}
-	
+
 	// Check prefixes
 	for _, prefix := range applicationPrefixes {
 		if strings.HasPrefix(key, prefix) {
 			return true
 		}
 	}
-	
+
 	// Specific application variables (not prefixed)
 	applicationVars := []string{
 		"PORT",
 		"NODE_ENV",
 		"ENVIRONMENT",
 	}
-	
+
 	for _, appVar := range applicationVars {
 		if key == appVar {
 			return true
 		}
 	}
-	
+
 	return false
 }

@@ -199,14 +199,31 @@ func updateWebApp(ctx context.Context, resourceGroup, webAppName string, cfg *co
 
 // setWebAppSettings sets application settings (environment variables) for the WebApp
 func setWebAppSettings(ctx context.Context, resourceGroup, webAppName string, cfg *config.Config) error {
-	// Collect all environment variables from config
-	var settings []string
-	for key, value := range cfg.GetAll() {
+	// Collect only application-specific environment variables (like ACI does)
+	allVars := cfg.GetAll()
+	settings := make([]string, 0, len(allVars))
+	for key, value := range allVars {
 		// Skip internal azctl variables that shouldn't be passed to the container
 		if isInternalVariable(key) {
 			continue
 		}
-		settings = append(settings, fmt.Sprintf("%s=%s", key, value))
+		
+		// Skip variables with very long values that might cause Azure CLI issues
+		if len(value) > 4000 {
+			logging.Debugf("Skipping variable '%s' - value too long (%d chars)", key, len(value))
+			continue
+		}
+		
+		// Only include variables that are application-specific (similar to ACI environmentVariables)
+		if !isApplicationVariable(key) {
+			logging.Debugf("Skipping infrastructure variable '%s'", key)
+			continue
+		}
+		
+		// Escape the value for shell safety
+		escapedValue := escapeShellValue(value)
+		settings = append(settings, fmt.Sprintf("%s=%s", key, escapedValue))
+		logging.Debugf("Including application setting: %s", key)
 	}
 
 	if len(settings) == 0 {
@@ -214,22 +231,41 @@ func setWebAppSettings(ctx context.Context, resourceGroup, webAppName string, cf
 		return nil
 	}
 
-	// Set application settings using az CLI
-	args := []string{
-		"webapp", "config", "appsettings", "set",
-		"--name", webAppName,
-		"--resource-group", resourceGroup,
-		"--settings",
-	}
-	args = append(args, settings...)
+	// Set application settings using az CLI - do it in batches to avoid command line length limits
+	const batchSize = 20
+	for i := 0; i < len(settings); i += batchSize {
+		end := i + batchSize
+		if end > len(settings) {
+			end = len(settings)
+		}
+		
+		batch := settings[i:end]
+		args := []string{
+			"webapp", "config", "appsettings", "set",
+			"--name", webAppName,
+			"--resource-group", resourceGroup,
+			"--settings",
+		}
+		args = append(args, batch...)
 
-	logging.Debugf("Setting %d application settings for WebApp '%s'", len(settings), webAppName)
-	if err := runx.AZ(ctx, args...); err != nil {
-		return fmt.Errorf("failed to set application settings: %w", err)
+		logging.Debugf("Setting batch %d/%d (%d settings) for WebApp '%s'", 
+			(i/batchSize)+1, (len(settings)+batchSize-1)/batchSize, len(batch), webAppName)
+		
+		if err := runx.AZ(ctx, args...); err != nil {
+			return fmt.Errorf("failed to set application settings batch %d: %w", (i/batchSize)+1, err)
+		}
 	}
 
 	logging.Infof("✅ Set %d application settings for WebApp '%s'", len(settings), webAppName)
 	return nil
+}
+
+// escapeShellValue escapes a value for safe use in shell commands
+func escapeShellValue(value string) string {
+	// Replace quotes with escaped quotes
+	escaped := strings.ReplaceAll(value, `"`, `\"`)
+	// Wrap in quotes to handle spaces and special characters
+	return `"` + escaped + `"`
 }
 
 // isInternalVariable checks if a variable is internal to azctl and shouldn't be passed to containers
@@ -258,5 +294,43 @@ func isInternalVariable(key string) bool {
 			return true
 		}
 	}
+	return false
+}
+
+// isApplicationVariable checks if a variable should be passed to the application container
+// This matches the environmentVariables in the ACI template
+func isApplicationVariable(key string) bool {
+	// Application-specific prefixes and variables (like in ACI environmentVariables)
+	applicationPrefixes := []string{
+		"NEXT_PUBLIC_",
+		"SUPABASE_",
+		"SOLANA_",
+		"AZURE_OPENAI_",
+		"OPENAI_",
+		"LOGFLARE_",
+		"FIREBASE_",
+		"SAGEMAKER_",
+	}
+	
+	// Check prefixes
+	for _, prefix := range applicationPrefixes {
+		if strings.HasPrefix(key, prefix) {
+			return true
+		}
+	}
+	
+	// Specific application variables (not prefixed)
+	applicationVars := []string{
+		"PORT",
+		"NODE_ENV",
+		"ENVIRONMENT",
+	}
+	
+	for _, appVar := range applicationVars {
+		if key == appVar {
+			return true
+		}
+	}
+	
 	return false
 }

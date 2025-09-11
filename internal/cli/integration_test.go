@@ -10,13 +10,18 @@ import (
 )
 
 func TestACRCommandValidation(t *testing.T) {
-	// Clean environment
+	// Clean environment and disable Azure App Configuration
 	defer func() {
-		for _, v := range []string{"ACR_REGISTRY", "ACR_RESOURCE_GROUP", "IMAGE_NAME", "IMAGE_TAG"} {
+		envVars := []string{"ACR_REGISTRY", "ACR_RESOURCE_GROUP", "IMAGE_NAME", "IMAGE_TAG", "APP_CONFIG_NAME", "APP_CONFIG"}
+		for _, v := range envVars {
 			//nolint:errcheck // os.Unsetenv rarely fails in test cleanup
 			os.Unsetenv(v)
 		}
 	}()
+
+	// Disable Azure App Configuration for this test
+	//nolint:errcheck // os.Setenv rarely fails in test setup
+	os.Setenv("APP_CONFIG_SKIP", "true")
 
 	// Test missing variables
 	err := Execute(context.Background(), []string{"acr"})

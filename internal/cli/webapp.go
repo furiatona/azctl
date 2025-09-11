@@ -174,8 +174,8 @@ func updateWebApp(ctx context.Context, resourceGroup, webAppName string, cfg *co
 		return fmt.Errorf("missing required variables: ACR_REGISTRY, IMAGE_NAME, IMAGE_TAG")
 	}
 
-	fullImageName := fmt.Sprintf("%s/%s:%s", registry, imageName, imageTag)
-	registryUrl := fmt.Sprintf("https://%s", registry)
+	fullImageName := fmt.Sprintf("%s.azurecr.io/%s:%s", registry, imageName, imageTag)
+	registryUrl := fmt.Sprintf("https://%s.azurecr.io", registry)
 
 	// Set container image
 	args := []string{
@@ -187,6 +187,11 @@ func updateWebApp(ctx context.Context, resourceGroup, webAppName string, cfg *co
 	}
 	if err := runx.AZ(ctx, args...); err != nil {
 		return fmt.Errorf("failed to update webapp container: %w", err)
+	}
+
+	// Set Docker registry credentials
+	if err := setWebAppRegistryCredentials(ctx, resourceGroup, webAppName, cfg); err != nil {
+		return fmt.Errorf("failed to set webapp registry credentials: %w", err)
 	}
 
 	// Set application settings (environment variables) from config
@@ -257,6 +262,44 @@ func setWebAppSettings(ctx context.Context, resourceGroup, webAppName string, cf
 	}
 
 	logging.Infof("✅ Set %d application settings for WebApp '%s'", len(settings), webAppName)
+	return nil
+}
+
+// setWebAppRegistryCredentials sets Docker registry credentials for the WebApp
+func setWebAppRegistryCredentials(ctx context.Context, resourceGroup, webAppName string, cfg *config.Config) error {
+	acrRegistry := cfg.Get("ACR_REGISTRY")
+	acrUsername := cfg.Get("ACR_USERNAME")
+	acrPassword := cfg.Get("ACR_PASSWORD")
+
+	if acrRegistry == "" || acrUsername == "" || acrPassword == "" {
+		return fmt.Errorf("missing required ACR credentials: ACR_REGISTRY, ACR_USERNAME, ACR_PASSWORD")
+	}
+
+	// Set Docker registry server URL (should include .azurecr.io suffix)
+	registryUrl := fmt.Sprintf("https://%s.azurecr.io", acrRegistry)
+	registrySettings := []string{
+		fmt.Sprintf("DOCKER_REGISTRY_SERVER_URL=%s", registryUrl),
+		fmt.Sprintf("DOCKER_REGISTRY_SERVER_USERNAME=%s", acrUsername),
+		fmt.Sprintf("DOCKER_REGISTRY_SERVER_PASSWORD=%s", acrPassword),
+	}
+
+	// Set Docker registry credentials using az CLI
+	args := []string{
+		"webapp", "config", "appsettings", "set",
+		"--name", webAppName,
+		"--resource-group", resourceGroup,
+		"--settings",
+	}
+	args = append(args, registrySettings...)
+
+	logging.Debugf("Setting Docker registry credentials for WebApp '%s': URL=%s, Username=%s", 
+		webAppName, registryUrl, acrUsername)
+	
+	if err := runx.AZ(ctx, args...); err != nil {
+		return fmt.Errorf("failed to set Docker registry credentials: %w", err)
+	}
+
+	logging.Infof("✅ Set Docker registry credentials for WebApp '%s'", webAppName)
 	return nil
 }
 

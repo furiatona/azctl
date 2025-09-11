@@ -117,7 +117,9 @@ func fetchAzureAppConfigWithImage(ctx context.Context, name, label, imageName st
 						}
 					}
 				} else {
-					logx.Infof("[DEBUG] Failed to parse service-specific JSON: %v", err)
+					logx.Warnf("[WARN] Failed to parse service-specific JSON for key '%s': %v", imageName, err)
+					logx.Warnf("[WARN] Please check your Azure App Configuration JSON format for key '%s'", imageName)
+					logx.Warnf("[WARN] Common issues: missing commas, duplicate keys, or invalid JSON syntax")
 					logx.Infof("[DEBUG] Raw service JSON value: %s", serviceKV.Value)
 				}
 			}
@@ -145,7 +147,9 @@ func fetchAzureAppConfigWithImage(ctx context.Context, name, label, imageName st
 								}
 							}
 						} else {
-							logx.Infof("[DEBUG] Failed to parse service-specific JSON (no label): %v", err)
+							logx.Warnf("[WARN] Failed to parse service-specific JSON (no label) for key '%s': %v", imageName, err)
+							logx.Warnf("[WARN] Please check your Azure App Configuration JSON format for key '%s'", imageName)
+							logx.Warnf("[WARN] Common issues: missing commas, duplicate keys, or invalid JSON syntax")
 							logx.Infof("[DEBUG] Raw service JSON value (no label): %s", serviceKVNoLabel.Value)
 						}
 					}

@@ -43,6 +43,22 @@ func newWebAppCmd() *cobra.Command {
 				return fmt.Errorf("environment required for webapp deployment (--env dev|staging|prod)")
 			}
 
+			// Auto-detect IMAGE_NAME and IMAGE_TAG in CI if not set
+			if isCIEnvironment() {
+				if cfg.Get("IMAGE_NAME") == "" {
+					if detectedImageName := detectImageNameFromCI(); detectedImageName != "" {
+						cfg.Set("IMAGE_NAME", detectedImageName)
+						logging.Debugf("Auto-detected IMAGE_NAME from CI: %s", detectedImageName)
+					}
+				}
+				if cfg.Get("IMAGE_TAG") == "" {
+					if detectedImageTag := detectImageTagFromCI(); detectedImageTag != "" {
+						cfg.Set("IMAGE_TAG", detectedImageTag)
+						logging.Debugf("Auto-detected IMAGE_TAG from CI: %s", detectedImageTag)
+					}
+				}
+			}
+
 			// Apply flag overrides
 			if resourceGroup == "" {
 				resourceGroup = cfg.Get("RESOURCE_GROUP")

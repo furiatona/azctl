@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os/exec"
 	"strings"
 
@@ -159,4 +160,87 @@ func fetchAzureAppConfigWithImage(ctx context.Context, name, label, imageName st
 	// Return the results we have so far (global-configurations + service-specific)
 	logx.Infof("[DEBUG] Returning config with %d variables", len(m))
 	return m, nil
+}
+
+// ExportAllConfig exports all configuration from Azure App Configuration
+func ExportAllConfig(ctx context.Context, name, label string) (map[string]string, error) {
+	if name == "" {
+		return nil, fmt.Errorf("APP_CONFIG_NAME is required")
+	}
+
+	logx.Infof("[DEBUG] Exporting all config from: name='%s', label='%s'", name, label)
+
+	// Build az appconfig kv list command
+	args := []string{"appconfig", "kv", "list", "--name", name, "-o", "json"}
+	if label != "" {
+		args = append(args, "--label", label)
+	}
+
+	cmd := exec.CommandContext(ctx, "az", args...) //nolint:gosec // az cli is trusted
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list app config keys: %w", err)
+	}
+
+	// Parse the output
+	var kvList []struct {
+		Key   string `json:"key"`
+		Value string `json:"value"`
+	}
+	if err := json.Unmarshal(out, &kvList); err != nil {
+		return nil, fmt.Errorf("failed to parse app config output: %w", err)
+	}
+
+	result := make(map[string]string)
+	for _, kv := range kvList {
+		// Check if value is JSON (for global-configurations and service keys)
+		var jsonValue map[string]interface{}
+		if err := json.Unmarshal([]byte(kv.Value), &jsonValue); err == nil {
+			// It's a JSON object, extract key-value pairs
+			for k, v := range jsonValue {
+				if str, ok := v.(string); ok {
+					result[strings.ToUpper(k)] = str
+				}
+			}
+		} else {
+			// It's a plain value, use key as-is
+			result[strings.ToUpper(kv.Key)] = kv.Value
+		}
+	}
+
+	logx.Infof("[DEBUG] Exported %d variables", len(result))
+	return result, nil
+}
+
+// ExportSpecificVars exports specific variables from Azure App Configuration
+func ExportSpecificVars(ctx context.Context, name, label string, vars []string) (map[string]string, error) {
+	if name == "" {
+		return nil, fmt.Errorf("APP_CONFIG_NAME is required")
+	}
+
+	if len(vars) == 0 {
+		return make(map[string]string), nil
+	}
+
+	logx.Infof("[DEBUG] Exporting specific vars from: name='%s', label='%s', vars=%v", name, label, vars)
+
+	// First, get all config
+	allConfig, err := ExportAllConfig(ctx, name, label)
+	if err != nil {
+		return nil, err
+	}
+
+	// Filter to only requested variables
+	result := make(map[string]string)
+	for _, varName := range vars {
+		upperVar := strings.ToUpper(varName)
+		if value, ok := allConfig[upperVar]; ok {
+			result[upperVar] = value
+		} else {
+			logx.Infof("[WARNING] Variable '%s' not found in app config", varName)
+		}
+	}
+
+	logx.Infof("[DEBUG] Exported %d of %d requested variables", len(result), len(vars))
+	return result, nil
 }

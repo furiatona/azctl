@@ -226,7 +226,10 @@ func (p *AzureAppConfigProvider) Load(ctx context.Context) (map[string]string, e
 	// Determine service name for Azure App Config
 	serviceName := p.determineServiceName()
 
-	return fetchAzureAppConfigWithImage(ctx, name, p.env, serviceName)
+	// Use environment name as label (dev, staging, prod)
+	label := p.env
+
+	return fetchAzureAppConfigWithImage(ctx, name, label, serviceName)
 }
 
 // determineServiceName determines the service name for Azure App Config

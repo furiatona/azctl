@@ -43,6 +43,22 @@ func newWebAppCmd() *cobra.Command {
 				return fmt.Errorf("environment required for webapp deployment (--env dev|staging|prod)")
 			}
 
+			// Auto-detect IMAGE_NAME and IMAGE_TAG in CI if not set
+			if isCIEnvironment() {
+				if cfg.Get("IMAGE_NAME") == "" {
+					if detectedImageName := detectImageNameFromCI(); detectedImageName != "" {
+						cfg.Set("IMAGE_NAME", detectedImageName)
+						logging.Debugf("Auto-detected IMAGE_NAME from CI: %s", detectedImageName)
+					}
+				}
+				if cfg.Get("IMAGE_TAG") == "" {
+					if detectedImageTag := detectImageTagFromCI(); detectedImageTag != "" {
+						cfg.Set("IMAGE_TAG", detectedImageTag)
+						logging.Debugf("Auto-detected IMAGE_TAG from CI: %s", detectedImageTag)
+					}
+				}
+			}
+
 			// Apply flag overrides
 			if resourceGroup == "" {
 				resourceGroup = cfg.Get("RESOURCE_GROUP")
@@ -158,9 +174,10 @@ func updateWebApp(ctx context.Context, resourceGroup, webAppName string, cfg *co
 		return fmt.Errorf("missing required variables: ACR_REGISTRY, IMAGE_NAME, IMAGE_TAG")
 	}
 
-	fullImageName := fmt.Sprintf("%s/%s:%s", registry, imageName, imageTag)
-	registryUrl := fmt.Sprintf("https://%s", registry)
+	fullImageName := fmt.Sprintf("%s.azurecr.io/%s:%s", registry, imageName, imageTag)
+	registryUrl := fmt.Sprintf("https://%s.azurecr.io", registry)
 
+	// Set container image
 	args := []string{
 		"webapp", "config", "container", "set",
 		"--name", webAppName,
@@ -169,7 +186,194 @@ func updateWebApp(ctx context.Context, resourceGroup, webAppName string, cfg *co
 		"--container-registry-url", registryUrl,
 	}
 	if err := runx.AZ(ctx, args...); err != nil {
-		return fmt.Errorf("failed to update webapp: %w", err)
+		return fmt.Errorf("failed to update webapp container: %w", err)
 	}
+
+	// Set Docker registry credentials
+	if err := setWebAppRegistryCredentials(ctx, resourceGroup, webAppName, cfg); err != nil {
+		return fmt.Errorf("failed to set webapp registry credentials: %w", err)
+	}
+
+	// Set application settings (environment variables) from config
+	if err := setWebAppSettings(ctx, resourceGroup, webAppName, cfg); err != nil {
+		return fmt.Errorf("failed to set webapp settings: %w", err)
+	}
+
 	return nil
+}
+
+// setWebAppSettings sets application settings (environment variables) for the WebApp
+func setWebAppSettings(ctx context.Context, resourceGroup, webAppName string, cfg *config.Config) error {
+	// Collect only application-specific environment variables (like ACI does)
+	allVars := cfg.GetAll()
+	settings := make([]string, 0, len(allVars))
+	for key, value := range allVars {
+		// Skip internal azctl variables that shouldn't be passed to the container
+		if isInternalVariable(key) {
+			continue
+		}
+
+		// Skip variables with very long values that might cause Azure CLI issues
+		if len(value) > 4000 {
+			logging.Debugf("Skipping variable '%s' - value too long (%d chars)", key, len(value))
+			continue
+		}
+
+		// Only include variables that are application-specific (similar to ACI environmentVariables)
+		if !isApplicationVariable(key) {
+			logging.Debugf("Skipping infrastructure variable '%s'", key)
+			continue
+		}
+
+		// Escape the value for shell safety (but don't add quotes)
+		escapedValue := escapeShellValue(value)
+		settings = append(settings, fmt.Sprintf("%s=%s", key, escapedValue))
+		logging.Debugf("Including application setting: %s", key)
+	}
+
+	if len(settings) == 0 {
+		logging.Debugf("No application settings to configure for WebApp '%s'", webAppName)
+		return nil
+	}
+
+	// Set application settings using az CLI - do it in batches to avoid command line length limits
+	const batchSize = 20
+	for i := 0; i < len(settings); i += batchSize {
+		end := i + batchSize
+		if end > len(settings) {
+			end = len(settings)
+		}
+
+		batch := settings[i:end]
+		args := []string{
+			"webapp", "config", "appsettings", "set",
+			"--name", webAppName,
+			"--resource-group", resourceGroup,
+			"--settings",
+		}
+		args = append(args, batch...)
+
+		logging.Debugf("Setting batch %d/%d (%d settings) for WebApp '%s'",
+			(i/batchSize)+1, (len(settings)+batchSize-1)/batchSize, len(batch), webAppName)
+
+		if err := runx.AZ(ctx, args...); err != nil {
+			return fmt.Errorf("failed to set application settings batch %d: %w", (i/batchSize)+1, err)
+		}
+	}
+
+	logging.Infof("✅ Set %d application settings for WebApp '%s'", len(settings), webAppName)
+	return nil
+}
+
+// setWebAppRegistryCredentials sets Docker registry credentials for the WebApp
+func setWebAppRegistryCredentials(ctx context.Context, resourceGroup, webAppName string, cfg *config.Config) error {
+	acrRegistry := cfg.Get("ACR_REGISTRY")
+	acrUsername := cfg.Get("ACR_USERNAME")
+	acrPassword := cfg.Get("ACR_PASSWORD")
+
+	if acrRegistry == "" || acrUsername == "" || acrPassword == "" {
+		return fmt.Errorf("missing required ACR credentials: ACR_REGISTRY, ACR_USERNAME, ACR_PASSWORD")
+	}
+
+	// Set Docker registry server URL (should include .azurecr.io suffix)
+	registryUrl := fmt.Sprintf("https://%s.azurecr.io", acrRegistry)
+	registrySettings := []string{
+		fmt.Sprintf("DOCKER_REGISTRY_SERVER_URL=%s", registryUrl),
+		fmt.Sprintf("DOCKER_REGISTRY_SERVER_USERNAME=%s", acrUsername),
+		fmt.Sprintf("DOCKER_REGISTRY_SERVER_PASSWORD=%s", acrPassword),
+	}
+
+	// Set Docker registry credentials using az CLI
+	args := []string{
+		"webapp", "config", "appsettings", "set",
+		"--name", webAppName,
+		"--resource-group", resourceGroup,
+		"--settings",
+	}
+	args = append(args, registrySettings...)
+
+	logging.Debugf("Setting Docker registry credentials for WebApp '%s': URL=%s, Username=%s",
+		webAppName, registryUrl, acrUsername)
+
+	if err := runx.AZ(ctx, args...); err != nil {
+		return fmt.Errorf("failed to set Docker registry credentials: %w", err)
+	}
+
+	logging.Infof("✅ Set Docker registry credentials for WebApp '%s'", webAppName)
+	return nil
+}
+
+// escapeShellValue escapes a value for safe use in shell commands
+func escapeShellValue(value string) string {
+	// Replace quotes with escaped quotes and handle special characters
+	// Don't wrap in quotes as Azure CLI handles the values properly
+	escaped := strings.ReplaceAll(value, `"`, `\"`)
+	return escaped
+}
+
+// isInternalVariable checks if a variable is internal to azctl and shouldn't be passed to containers
+func isInternalVariable(key string) bool {
+	internalVars := []string{
+		"ACR_REGISTRY",
+		"ACR_RESOURCE_GROUP",
+		"ACR_USERNAME",
+		"ACR_PASSWORD",
+		"RESOURCE_GROUP",
+		"IMAGE_NAME",
+		"IMAGE_TAG",
+		"WEBAPP_NAME",
+		"APP_SERVICE_PLAN",
+		"LOG_STORAGE_ACCOUNT",
+		"LOG_STORAGE_KEY",
+		"LOG_STORAGE_NAME",
+		"FLUENTBIT_CONFIG",
+		"APP_CONFIG_NAME",
+		"APP_CONFIG_LABEL",
+		"APP_CONFIG_SKIP",
+	}
+
+	for _, internal := range internalVars {
+		if key == internal {
+			return true
+		}
+	}
+	return false
+}
+
+// isApplicationVariable checks if a variable should be passed to the application container
+// This matches the environmentVariables in the ACI template
+func isApplicationVariable(key string) bool {
+	// Application-specific prefixes and variables (like in ACI environmentVariables)
+	applicationPrefixes := []string{
+		"NEXT_PUBLIC_",
+		"SUPABASE_",
+		"SOLANA_",
+		"AZURE_OPENAI_",
+		"OPENAI_",
+		"LOGFLARE_",
+		"FIREBASE_",
+		"SAGEMAKER_",
+	}
+
+	// Check prefixes
+	for _, prefix := range applicationPrefixes {
+		if strings.HasPrefix(key, prefix) {
+			return true
+		}
+	}
+
+	// Specific application variables (not prefixed)
+	applicationVars := []string{
+		"PORT",
+		"NODE_ENV",
+		"ENVIRONMENT",
+	}
+
+	for _, appVar := range applicationVars {
+		if key == appVar {
+			return true
+		}
+	}
+
+	return false
 }

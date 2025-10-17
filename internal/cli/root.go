@@ -6,6 +6,7 @@ import (
 
 	"github.com/furiatona/azctl/internal/config"
 	"github.com/furiatona/azctl/internal/logging"
+	"github.com/furiatona/azctl/internal/logx"
 
 	"github.com/spf13/cobra"
 )
@@ -60,6 +61,9 @@ func Execute(ctx context.Context, args []string) error {
 		if err := logging.Init(logConfig); err != nil {
 			return fmt.Errorf("failed to initialize logging: %w", err)
 		}
+
+		// Initialize logx package with verbose flag for Azure App Configuration logging
+		logx.Init(verbose)
 
 		envfile, _ := cmd.Flags().GetString("envfile")
 		env, _ := cmd.Flags().GetString("env")

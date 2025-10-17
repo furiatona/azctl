@@ -54,8 +54,11 @@ func fetchAzureAppConfigWithImage(ctx context.Context, name, label, imageName st
 					}
 				}
 			} else {
-				logx.Infof("[DEBUG] Failed to parse global-configurations JSON: %v", err)
-				logx.Infof("[DEBUG] Raw JSON value: %s", globalKV.Value)
+				//nolint:errcheck // Error logging for debugging
+				logx.Errorf("[ERROR] Failed to parse global-configurations JSON: %v", err)
+				//nolint:errcheck // Error logging for debugging
+				logx.Errorf("[ERROR] Raw JSON value: %s", globalKV.Value)
+				return nil, fmt.Errorf("malformed JSON in Azure App Configuration global-configurations key: %w", err)
 			}
 		}
 	} else {
@@ -83,8 +86,11 @@ func fetchAzureAppConfigWithImage(ctx context.Context, name, label, imageName st
 							}
 						}
 					} else {
-						logx.Infof("[DEBUG] Failed to parse global-configurations JSON (no label): %v", err)
-						logx.Infof("[DEBUG] Raw JSON value (no label): %s", globalKVNoLabel.Value)
+						//nolint:errcheck // Error logging for debugging
+						logx.Errorf("[ERROR] Failed to parse global-configurations JSON (no label): %v", err)
+						//nolint:errcheck // Error logging for debugging
+						logx.Errorf("[ERROR] Raw JSON value (no label): %s", globalKVNoLabel.Value)
+						return nil, fmt.Errorf("malformed JSON in Azure App Configuration global-configurations key (no label): %w", err)
 					}
 				}
 			} else {
@@ -118,8 +124,15 @@ func fetchAzureAppConfigWithImage(ctx context.Context, name, label, imageName st
 						}
 					}
 				} else {
-					logx.Infof("[DEBUG] Failed to parse service-specific JSON: %v", err)
-					logx.Infof("[DEBUG] Raw service JSON value: %s", serviceKV.Value)
+					//nolint:errcheck // Error logging for debugging
+					logx.Errorf("[ERROR] Failed to parse service-specific JSON for key '%s': %v", imageName, err)
+					//nolint:errcheck // Error logging for debugging
+					logx.Errorf("[ERROR] Please check your Azure App Configuration JSON format for key '%s'", imageName)
+					//nolint:errcheck // Error logging for debugging
+					logx.Errorf("[ERROR] Common issues: missing commas, duplicate keys, or invalid JSON syntax")
+					//nolint:errcheck // Error logging for debugging
+					logx.Errorf("[ERROR] Raw service JSON value: %s", serviceKV.Value)
+					return nil, fmt.Errorf("malformed JSON in Azure App Configuration key '%s': %w", imageName, err)
 				}
 			}
 		} else {
@@ -146,8 +159,15 @@ func fetchAzureAppConfigWithImage(ctx context.Context, name, label, imageName st
 								}
 							}
 						} else {
-							logx.Infof("[DEBUG] Failed to parse service-specific JSON (no label): %v", err)
-							logx.Infof("[DEBUG] Raw service JSON value (no label): %s", serviceKVNoLabel.Value)
+							//nolint:errcheck // Error logging for debugging
+							logx.Errorf("[ERROR] Failed to parse service-specific JSON (no label) for key '%s': %v", imageName, err)
+							//nolint:errcheck // Error logging for debugging
+							logx.Errorf("[ERROR] Please check your Azure App Configuration JSON format for key '%s'", imageName)
+							//nolint:errcheck // Error logging for debugging
+							logx.Errorf("[ERROR] Common issues: missing commas, duplicate keys, or invalid JSON syntax")
+							//nolint:errcheck // Error logging for debugging
+							logx.Errorf("[ERROR] Raw service JSON value (no label): %s", serviceKVNoLabel.Value)
+							return nil, fmt.Errorf("malformed JSON in Azure App Configuration key '%s': %w", imageName, err)
 						}
 					}
 				} else {

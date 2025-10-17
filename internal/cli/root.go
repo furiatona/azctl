@@ -79,6 +79,7 @@ func Execute(ctx context.Context, args []string) error {
 	root.AddCommand(newACRCmd())
 	root.AddCommand(newACICmd())
 	root.AddCommand(newWebAppCmd())
+	root.AddCommand(newAppConfigCmd())
 
 	root.SetArgs(args)
 	err := root.ExecuteContext(ctx)

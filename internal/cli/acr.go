@@ -63,6 +63,7 @@ func newACRCmd() *cobra.Command {
 		imageTag      string
 		contextPath   string
 		file          string
+		force         bool
 	)
 
 	cmd := &cobra.Command{
@@ -143,22 +144,26 @@ func newACRCmd() *cobra.Command {
 			imageTag = cfg.Get("IMAGE_TAG")
 			fullImageName := fmt.Sprintf("%s.azurecr.io/%s:%s", registry, imageName, imageTag)
 
-			// Check if image already exists
-			logging.Infof("Checking if image already exists: %s", fullImageName)
-			checkArgs := []string{
-				"acr", "repository", "show-tags",
-				"--name", registry,
-				"--repository", imageName,
-				"--output", "tsv",
-			}
-			existingTags, err := runx.AZOutput(cmd.Context(), checkArgs...)
-			if err == nil {
-				// Check if the tag exists
-				if strings.Contains(existingTags, imageTag) {
-					logging.Infof("✅ Image already exists: %s", fullImageName)
-					logging.Infof("Skipping build for existing image")
-					return nil
+			// Check if image already exists (unless force is specified)
+			if !force {
+				logging.Infof("Checking if image already exists: %s", fullImageName)
+				checkArgs := []string{
+					"acr", "repository", "show-tags",
+					"--name", registry,
+					"--repository", imageName,
+					"--output", "tsv",
 				}
+				existingTags, err := runx.AZOutput(cmd.Context(), checkArgs...)
+				if err == nil {
+					// Check if the tag exists
+					if strings.Contains(existingTags, imageTag) {
+						logging.Infof("✅ Image already exists: %s", fullImageName)
+						logging.Infof("Skipping build for existing image")
+						return nil
+					}
+				}
+			} else {
+				logging.Infof("Force rebuild enabled, skipping existence check")
 			}
 
 			logging.Infof("Building and pushing image: %s", fullImageName)
@@ -204,5 +209,6 @@ func newACRCmd() *cobra.Command {
 	cmd.Flags().StringVar(&imageTag, "tag", "", "Image tag (env: IMAGE_TAG)")
 	cmd.Flags().StringVar(&contextPath, "context", ".", "Build context path")
 	cmd.Flags().StringVar(&file, "file", "", "Dockerfile path")
+	cmd.Flags().BoolVar(&force, "force", false, "Force rebuild and push even if image tag already exists")
 	return cmd
 }

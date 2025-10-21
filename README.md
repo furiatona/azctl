@@ -123,8 +123,14 @@ azctl acr --env prod
 # Using CLI flags
 azctl acr --registry myregistry --image myapp --tag v1.0.0
 
+# Force rebuild even if image already exists
+azctl acr --env prod --force
+
 # In CI - environment auto-detected from branch name
 azctl acr  # Auto-detects 'staging' from 'staging' branch
+
+# Custom Dockerfile location
+azctl acr --env dev --file ./docker/Dockerfile.custom --context .
 ```
 
 ### Deploy to WebApp
@@ -135,6 +141,12 @@ azctl webapp --env staging --resource-group my-rg
 
 # Deploy with custom WebApp name
 azctl webapp --env production --name my-custom-webapp
+
+# Deploy with custom container image
+azctl webapp --env prod --image chiswarm.azurecr.io/swarm-kids-web:frontend
+
+# Deploy with image from different registry
+azctl webapp --env dev --image myregistry.azurecr.io/myapp:v2.0.0
 
 # In CI - environment auto-detected
 azctl webapp --resource-group my-rg  # Auto-detects environment
@@ -155,6 +167,61 @@ azctl aci --dry-run --env staging --resource-group staging-rg
 # In CI - environment auto-detected
 azctl aci --resource-group my-rg  # Auto-detects environment
 ```
+
+## 🔧 Command Reference
+
+### Global Flags (Available for all commands)
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--env` | Environment name (dev, staging, prod) | Auto-detected in CI |
+| `--envfile` | Path to .env file | `.env` |
+| `--verbose` | Enable verbose logging | `false` |
+| `--log-level` | Log level (debug, info, warn, error) | `info` |
+| `--log-format` | Log format (text, json) | `text` |
+
+### ACR Command Flags
+
+| Flag | Description | Environment Variable | Required |
+|------|-------------|---------------------|----------|
+| `--registry` | ACR registry name | `ACR_REGISTRY` | Yes |
+| `--resource-group` | Resource group for ACR | `ACR_RESOURCE_GROUP` | No* |
+| `--image` | Image name | `IMAGE_NAME` | Yes |
+| `--tag` | Image tag | `IMAGE_TAG` | Yes |
+| `--context` | Build context path | - | No (default: `.`) |
+| `--file` | Dockerfile path | - | No |
+| `--force` | Force rebuild even if image exists | - | No |
+
+*Auto-detected if not provided
+
+### WebApp Command Flags
+
+| Flag | Description | Environment Variable | Required |
+|------|-------------|---------------------|----------|
+| `--resource-group` | Resource group | `RESOURCE_GROUP` | Yes |
+| `--name` | WebApp name | `WEBAPP_NAME` or `{ENV}_WEBAPP_NAME` | No* |
+| `--plan` | App Service Plan | `APP_SERVICE_PLAN` or `{ENV}_APP_SERVICE_PLAN` | No** |
+| `--image` | Full container image (e.g., registry.azurecr.io/image:tag) | - | No*** |
+
+*Auto-generated from IMAGE_NAME and environment if not provided
+**Required only when creating new WebApps
+***If not provided, built from ACR_REGISTRY, IMAGE_NAME, and IMAGE_TAG
+
+### ACI Command Flags
+
+| Flag | Description | Environment Variable | Required |
+|------|-------------|---------------------|----------|
+| `--resource-group` | Resource group | `AZURE_RESOURCE_GROUP` | Yes |
+| `--template` | Path to aci.json template | - | No (default: `deploy/manifests/aci.json`) |
+| `--dry-run` | Generate JSON without deploying | - | No |
+
+### AppConfig Command Flags
+
+| Flag | Description | Required |
+|------|-------------|----------|
+| `--var` | Specific variable(s) to export (can be used multiple times) | No |
+| `--format` | Output format: env, json, yaml, dotenv | No (default: `env`) |
+| `--output` | Output file path | No (default: stdout) |
 
 ## 📊 Logging Integration
 

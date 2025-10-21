@@ -18,6 +18,7 @@ func newWebAppCmd() *cobra.Command {
 		resourceGroup  string
 		webAppName     string
 		appServicePlan string
+		image          string
 	)
 
 	cmd := &cobra.Command{
@@ -84,7 +85,7 @@ func newWebAppCmd() *cobra.Command {
 			if exists {
 				// Update existing WebApp
 				logging.Infof("Updating existing Web App '%s'...", webAppName)
-				return updateWebApp(cmd.Context(), resourceGroup, webAppName, cfg)
+				return updateWebApp(cmd.Context(), resourceGroup, webAppName, cfg, image)
 			} else {
 				// Create new WebApp
 				if appServicePlan == "" {
@@ -98,7 +99,7 @@ func newWebAppCmd() *cobra.Command {
 				if err := createWebApp(cmd.Context(), resourceGroup, webAppName, appServicePlan); err != nil {
 					return fmt.Errorf("failed to create WebApp: %w", err)
 				}
-				return updateWebApp(cmd.Context(), resourceGroup, webAppName, cfg)
+				return updateWebApp(cmd.Context(), resourceGroup, webAppName, cfg, image)
 			}
 		},
 	}
@@ -107,6 +108,8 @@ func newWebAppCmd() *cobra.Command {
 	cmd.Flags().StringVar(&webAppName, "name", "", "WebApp name (env: WEBAPP_NAME or <env>_WEBAPP_NAME)")
 	cmd.Flags().StringVar(&appServicePlan, "plan", "",
 		"App Service Plan (env: APP_SERVICE_PLAN or <env>_APP_SERVICE_PLAN)")
+	cmd.Flags().StringVar(&image, "image", "",
+		"Full container image (e.g., registry.azurecr.io/image:tag) or auto-built from env vars")
 	return cmd
 }
 
@@ -165,17 +168,36 @@ func createWebApp(ctx context.Context, resourceGroup, webAppName, appServicePlan
 }
 
 // updateWebApp updates an existing WebApp with container configuration
-func updateWebApp(ctx context.Context, resourceGroup, webAppName string, cfg *config.Config) error {
-	registry := cfg.Get("ACR_REGISTRY")
-	imageName := cfg.Get("IMAGE_NAME")
-	imageTag := cfg.Get("IMAGE_TAG")
+func updateWebApp(ctx context.Context, resourceGroup, webAppName string, cfg *config.Config, customImage string) error {
+	var fullImageName, registryUrl string
 
-	if registry == "" || imageName == "" || imageTag == "" {
-		return fmt.Errorf("missing required variables: ACR_REGISTRY, IMAGE_NAME, IMAGE_TAG")
+	if customImage != "" {
+		// Use custom image directly
+		fullImageName = customImage
+		logging.Infof("Using custom image: %s", fullImageName)
+
+		// Extract registry URL from custom image
+		// Expected format: registry.azurecr.io/image:tag or registry.domain/image:tag
+		parts := strings.Split(customImage, "/")
+		if len(parts) > 0 {
+			registryHost := parts[0]
+			registryUrl = fmt.Sprintf("https://%s", registryHost)
+		} else {
+			return fmt.Errorf("invalid image format: %s (expected format: registry.azurecr.io/image:tag)", customImage)
+		}
+	} else {
+		// Build from config variables
+		registry := cfg.Get("ACR_REGISTRY")
+		imageName := cfg.Get("IMAGE_NAME")
+		imageTag := cfg.Get("IMAGE_TAG")
+
+		if registry == "" || imageName == "" || imageTag == "" {
+			return fmt.Errorf("missing required variables: ACR_REGISTRY, IMAGE_NAME, IMAGE_TAG (or use --image flag)")
+		}
+
+		fullImageName = fmt.Sprintf("%s.azurecr.io/%s:%s", registry, imageName, imageTag)
+		registryUrl = fmt.Sprintf("https://%s.azurecr.io", registry)
 	}
-
-	fullImageName := fmt.Sprintf("%s.azurecr.io/%s:%s", registry, imageName, imageTag)
-	registryUrl := fmt.Sprintf("https://%s.azurecr.io", registry)
 
 	// Set container image
 	args := []string{

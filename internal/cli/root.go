@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/furiatona/azctl/internal/config"
 	"github.com/furiatona/azctl/internal/logging"
@@ -39,7 +40,7 @@ func Execute(ctx context.Context, args []string) error {
 	// Global persistent flags
 	root.PersistentFlags().String("envfile", ".env", "Path to .env file (optional)")
 	root.PersistentFlags().String("env", "",
-		"Environment name (dev, staging, prod) - determines .env file and Azure App Config scope")
+		"Environment name (dev, staging, production) - determines .env file and Azure App Config scope")
 	root.PersistentFlags().Bool("verbose", false, "Enable verbose logging")
 	root.PersistentFlags().String("log-level", "info", "Log level (debug, info, warn, error)")
 	root.PersistentFlags().String("log-format", "text", "Log format (text, json)")
@@ -67,6 +68,11 @@ func Execute(ctx context.Context, args []string) error {
 
 		envfile, _ := cmd.Flags().GetString("envfile")
 		env, _ := cmd.Flags().GetString("env")
+		if strings.EqualFold(env, "production") {
+			env = "prod"
+			// Update flag value so downstream commands see normalized env
+			_ = cmd.Flags().Set("env", env)
+		}
 
 		// If environment is specified, use environment-specific .env file
 		if env != "" && envfile == ".env" {

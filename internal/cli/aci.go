@@ -39,13 +39,6 @@ func newACICmd() *cobra.Command {
 			// Get environment from root command
 			envName, _ := cmd.Flags().GetString("env")
 
-			// Check for production environment early
-			if envName == envProd || envName == envProduction {
-				logging.Infof("Production deployment is coming soon!")
-				logging.Infof("For now, please use --dry-run to generate the ACI JSON and deploy manually.")
-				return nil
-			}
-
 			cfg := config.Current()
 
 			// Auto-detect environment in CI if not provided
